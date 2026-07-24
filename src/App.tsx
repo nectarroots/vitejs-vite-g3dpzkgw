@@ -147,6 +147,31 @@ export default function App() {
     setTimeout(() => setToast({ show: false, msg: '', type: '' }), 3500);
   };
 
+  // 📧 EMAIL ALERT FUNCTION (WEB3FORMS)
+  const sendEmailAlert = async (subject: string, message: string) => {
+    // API Key given by user
+    const myAccessKey = '6c022681-4948-4be2-973e-3548e836739f'; 
+
+    try {
+      await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          access_key: myAccessKey,
+          subject: subject,
+          from_name: 'Nectar Roots Store 🌿',
+          message: message,
+        }),
+      });
+      console.log('Email Alert Sent Successfully!');
+    } catch (error) {
+      console.error('Email Error:', error);
+    }
+  };
+
   // REAL SUPABASE AUTHENTICATION
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,6 +289,13 @@ export default function App() {
       fetchLiveDatabaseData();
       setShowSubscribeModal(false);
       showToast(`Subscription Started for ${selectedSubProduct.name}! 📅`);
+
+      // 📧 Send Email Alert for New Subscription
+      sendEmailAlert(
+        `📅 New Subscription: ${currentCustomer.name}`,
+        `Hello Admin, you have a new subscription request!\n\nCustomer Details:\nName: ${currentCustomer.name}\nPhone: ${currentCustomer.phone}\nAddress: ${currentCustomer.address}\n\nSubscription Details:\nProduct: ${selectedSubProduct.name}\nQuantity: ${subQty} ${selectedSubProduct.unit} per day\nFrequency: ${subFreq}\nPayment Mode: ${subPayType === 'scan_deduct' ? 'Cut on QR Scan' : 'Auto-Deduct'}`
+      );
+
     } catch (err: any) {
       alert("Subscription failed: " + err.message);
     }
@@ -427,9 +459,19 @@ export default function App() {
       if (txErr) throw txErr;
 
       fetchLiveDatabaseData();
+      
+      const orderedItemsText = cart.map(c => `- ${c.name} (${c.quantity} ${c.unit})`).join('\n');
+      
       setCart([]);
       setShowCartModal(false);
       showToast(`Order Placed! ₹${total} deducted from wallet.`);
+
+      // 📧 Send Email Alert for New Cart Order
+      sendEmailAlert(
+        `🚨 New Order: ₹${total} by ${activeCustomer.name}`,
+        `Hello Admin, you have a new checkout order!\n\nCustomer Details:\nName: ${activeCustomer.name}\nPhone: ${activeCustomer.phone}\nAddress: ${activeCustomer.address}\n\nOrder Total: ₹${total}\n\nItems Ordered:\n${orderedItemsText}`
+      );
+
     } catch (e: any) {
       alert('Checkout failed: ' + e.message);
     }
@@ -667,7 +709,6 @@ export default function App() {
                   </div>
 
                   <div className="mt-3 space-y-1.5">
-                    {/* Daily Subscription Button */}
                     <button
                       onClick={() => {
                         setSelectedSubProduct(p);
@@ -678,7 +719,6 @@ export default function App() {
                       <span>📅 Subscribe Daily</span>
                     </button>
 
-                    {/* One Time Buy Button */}
                     {qtyInCart > 0 ? (
                       <div className="flex items-center justify-between bg-emerald-50 rounded-xl p-1 border border-emerald-200">
                         <button onClick={() => handleUpdateCartQuantity(p.id, -1)} className="w-6 h-6 bg-white rounded font-bold text-xs">-</button>
@@ -698,13 +738,10 @@ export default function App() {
         </main>
       )}
 
-      {/* 📅 DAILY SUBSCRIPTION MODAL (WITH BOTH CHOICES) */}
+      {/* 📅 DAILY SUBSCRIPTION MODAL (SCROLLABLE VERSION) */}
       {showSubscribeModal && selectedSubProduct && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
-          {/* Added max-h-[85vh] and flex-col for scrolling support */}
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-xl flex flex-col max-h-[85vh]">
-            
-            {/* Header - Fixed on top */}
             <div className="flex justify-between items-center border-b pb-3 mb-3 shrink-0">
               <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
                 <span>🥛 Daily Subscription Plan</span>
@@ -712,7 +749,6 @@ export default function App() {
               <button onClick={() => setShowSubscribeModal(false)} className="text-slate-400 hover:text-slate-700 font-bold text-lg">✕</button>
             </div>
 
-            {/* Scrollable Content Area */}
             <div className="overflow-y-auto pr-1 space-y-4 pb-2">
               <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center gap-3">
                 <span className="text-3xl">{selectedSubProduct.icon || '🌿'}</span>
@@ -723,7 +759,6 @@ export default function App() {
               </div>
 
               <form onSubmit={handleCreateSubscription} className="space-y-4">
-                {/* Quantity */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Select Quantity per day:</label>
                   <div className="flex items-center gap-2">
@@ -740,7 +775,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Frequency */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Delivery Frequency:</label>
                   <div className="flex gap-2">
@@ -761,7 +795,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Payment Cut Choice */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Payment Cut Preference:</label>
                   <div className="space-y-2">
@@ -805,9 +838,10 @@ export default function App() {
           </div>
         </div>
       )}
+
       {/* BOTTOM NAVIGATION BAR */}
       {user && role === 'customer' && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-t-2xl">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-t-2xl pb-safe">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center text-[#0A2E23]">
             <span className="text-xl mb-0.5">🏪</span>
             <span className="text-[10px] font-bold">Store</span>
@@ -858,6 +892,61 @@ export default function App() {
                   <button type="button" onClick={handleCustomerSignup} className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-bold">Sign Up ➔</button>
                 )}
               </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CART MODAL */}
+      {showCartModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-sm sm:max-w-md md:max-w-lg w-full shadow-xl border border-slate-100 max-h-[85vh] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 mb-3">
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <span>🛒 Shopping Cart</span>
+                </h3>
+                <button onClick={() => setShowCartModal(false)} className="text-slate-400 font-bold hover:text-slate-700">✕</button>
+              </div>
+
+              {cart.length === 0 ? (
+                <div className="py-10 text-center space-y-3">
+                  <div className="text-5xl">🛒</div>
+                  <p className="text-sm font-semibold text-slate-700">Your cart is empty!</p>
+                  <button onClick={() => setShowCartModal(false)} className="bg-[#0A2E23] hover:bg-emerald-900 text-white font-semibold px-5 py-2.5 rounded-xl text-xs transition active:scale-95 shadow-sm">Browse Products</button>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+                  {cart.map((item) => (
+                    <div key={item.id} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-200/80">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{item.icon}</span>
+                        <div>
+                          <div className="font-semibold text-xs text-slate-800">{item.name}</div>
+                          <div className="text-[11px] text-emerald-900 font-medium mt-0.5">₹{item.price} / {item.unit} | <span className="font-bold text-[#0A2E23]">Total: ₹{item.price * item.quantity}</span></div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-white rounded-lg font-bold text-sm border text-slate-700">-</button>
+                        <span className="text-xs font-bold text-slate-900 w-3 text-center">{item.quantity}</span>
+                        <button onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#0A2E23] rounded-lg font-bold text-sm text-white">+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="pt-3 border-t border-slate-100 mt-4 space-y-2.5">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-900">
+                  <span>Total Amount</span>
+                  <span className="text-[#0A2E23] text-base">₹{getCartTotal()}</span>
+                </div>
+                <button onClick={handleCheckout} className="w-full bg-[#0A2E23] hover:bg-emerald-900 text-amber-200 font-semibold py-3 rounded-xl text-xs shadow-md transition active:scale-95 mt-1">
+                  Proceed to Checkout ➔
+                </button>
+              </div>
             )}
           </div>
         </div>
