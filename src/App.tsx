@@ -700,104 +700,111 @@ export default function App() {
 
       {/* 📅 DAILY SUBSCRIPTION MODAL (WITH BOTH CHOICES) */}
       {showSubscribeModal && selectedSubProduct && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-2">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
+          {/* Added max-h-[85vh] and flex-col for scrolling support */}
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-xl flex flex-col max-h-[85vh]">
+            
+            {/* Header - Fixed on top */}
+            <div className="flex justify-between items-center border-b pb-3 mb-3 shrink-0">
               <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
                 <span>🥛 Daily Subscription Plan</span>
               </h3>
-              <button onClick={() => setShowSubscribeModal(false)} className="text-slate-400 font-bold">✕</button>
+              <button onClick={() => setShowSubscribeModal(false)} className="text-slate-400 hover:text-slate-700 font-bold text-lg">✕</button>
             </div>
 
-            <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center gap-3">
-              <span className="text-3xl">{selectedSubProduct.icon || '🌿'}</span>
-              <div>
-                <div className="font-bold text-xs text-slate-900">{selectedSubProduct.name}</div>
-                <div className="text-xs font-bold text-[#0A2E23]">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div>
+            {/* Scrollable Content Area */}
+            <div className="overflow-y-auto pr-1 space-y-4 pb-2">
+              <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center gap-3">
+                <span className="text-3xl">{selectedSubProduct.icon || '🌿'}</span>
+                <div>
+                  <div className="font-bold text-xs text-slate-900">{selectedSubProduct.name}</div>
+                  <div className="text-xs font-bold text-[#0A2E23]">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div>
+                </div>
               </div>
-            </div>
 
-            <form onSubmit={handleCreateSubscription} className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Select Quantity per day:</label>
-                <div className="flex items-center gap-3">
-                  {[1, 2, 3, 5].map((q) => (
+              <form onSubmit={handleCreateSubscription} className="space-y-4">
+                {/* Quantity */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Select Quantity per day:</label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 5].map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setSubQty(q)}
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition ${subQty === q ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Frequency */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Delivery Frequency:</label>
+                  <div className="flex gap-2">
                     <button
-                      key={q}
                       type="button"
-                      onClick={() => setSubQty(q)}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${subQty === q ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                      onClick={() => setSubFreq('Daily')}
+                      className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition ${subFreq === 'Daily' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
                     >
-                      {q} {selectedSubProduct.unit}
+                      📅 Everyday
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setSubFreq('Alternate Days')}
+                      className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition ${subFreq === 'Alternate Days' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                    >
+                      🗓️ Alt. Days
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Delivery Frequency:</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSubFreq('Daily')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border ${subFreq === 'Daily' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
-                  >
-                    📅 Everyday
+                {/* Payment Cut Choice */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Payment Cut Preference:</label>
+                  <div className="space-y-2">
+                    <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${subPayType === 'scan_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                      <input
+                        type="radio"
+                        name="payType"
+                        checked={subPayType === 'scan_deduct'}
+                        onChange={() => setSubPayType('scan_deduct')}
+                        className="mt-0.5 accent-[#0A2E23]"
+                      />
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-900">📱 Cut Money After QR Scan</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">Delivery boy scans your QR code at doorstep, then money is deducted.</div>
+                      </div>
+                    </label>
+
+                    <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${subPayType === 'auto_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                      <input
+                        type="radio"
+                        name="payType"
+                        checked={subPayType === 'auto_deduct'}
+                        onChange={() => setSubPayType('auto_deduct')}
+                        className="mt-0.5 accent-[#0A2E23]"
+                      />
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-900">⚡ Auto-Deduct Morning</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">Money auto-deducts daily. QR code scanned just for delivery confirmation.</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-2 sticky bottom-0 bg-white pb-1">
+                  <button type="submit" className="w-full bg-[#0A2E23] hover:bg-emerald-900 text-amber-200 font-bold py-3.5 rounded-xl text-xs shadow-md transition active:scale-95">
+                    Confirm Subscription (₹{selectedSubProduct.price * subQty} / day) ➔
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setSubFreq('Alternate Days')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border ${subFreq === 'Alternate Days' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
-                  >
-                    🗓️ Alternate Days
-                  </button>
                 </div>
-              </div>
-
-              {/* PAYMENT CUT CHOICE (THE 2 OPTIONS) */}
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">Payment Cut Preference:</label>
-                <div className="space-y-2">
-                  <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer ${subPayType === 'scan_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
-                    <input
-                      type="radio"
-                      name="payType"
-                      checked={subPayType === 'scan_deduct'}
-                      onChange={() => setSubPayType('scan_deduct')}
-                      className="mt-0.5"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">📱 Cut Money After QR Code Scan</div>
-                      <div className="text-[10px] text-slate-500">Delivery boy scans your QR code at doorstep, then money is deducted.</div>
-                    </div>
-                  </label>
-
-                  <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer ${subPayType === 'auto_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
-                    <input
-                      type="radio"
-                      name="payType"
-                      checked={subPayType === 'auto_deduct'}
-                      onChange={() => setSubPayType('auto_deduct')}
-                      className="mt-0.5"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">⚡ Auto-Deduct Every Morning</div>
-                      <div className="text-[10px] text-slate-500">Money auto-deducts daily. Delivery boy scans QR code to confirm delivery.</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button type="submit" className="w-full bg-[#0A2E23] text-amber-200 font-bold py-3 rounded-xl text-xs shadow-md">
-                  Confirm Subscription (₹{selectedSubProduct.price * subQty} / day) ➔
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}
-
       {/* BOTTOM NAVIGATION BAR */}
       {user && role === 'customer' && (
         <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-t-2xl">
