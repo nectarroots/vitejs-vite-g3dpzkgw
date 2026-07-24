@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient'; // 🔒 Safe Import
+import { supabase } from './supabaseClient'; 
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -38,7 +38,7 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [showOrdersModal, setShowOrdersModal] = useState(false); // 📦 Added Orders Modal State
+  const [showOrdersModal, setShowOrdersModal] = useState(false); 
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
   // Auth States
@@ -368,7 +368,6 @@ export default function App() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
-    // Check if user is logged in
     if (!user || role === 'guest') {
       setShowCartModal(false);
       setShowLoginModal(true);
@@ -376,7 +375,6 @@ export default function App() {
       return;
     }
 
-    // Find active customer profile
     const activeCustomer = customers.find(
       (c) => c.email === user.email || c.id === user.id
     );
@@ -473,7 +471,7 @@ export default function App() {
         );
 
   return (
-    <div className="min-h-screen bg-[#f8f6f0] text-slate-800 font-sans pb-28 antialiased selection:bg-emerald-100">
+    <div className="min-h-screen bg-[#f8f6f0] text-slate-800 font-sans pb-28 antialiased selection:bg-emerald-100 relative">
       {/* Dynamic Notifications */}
       {toast.show && (
         <div
@@ -485,7 +483,7 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER SECTION */}
+      {/* HEADER SECTION - NOW CLEANER */}
       <header className="bg-[#0A2E23] text-white px-4 py-3 shadow-md sticky top-0 z-20 flex justify-between items-center backdrop-blur-md">
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="w-9 h-9 bg-gradient-to-br from-amber-300 via-emerald-400 to-emerald-700 rounded-xl flex items-center justify-center text-lg shadow-sm shrink-0">
@@ -506,16 +504,19 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* Cart Icon */}
           {(role === 'guest' || role === 'customer') && (
             <button
               onClick={() => setShowCartModal(true)}
               className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95"
             >
               <span>🛒</span>
-              <span>Cart ({getCartCount()})</span>
+              <span className="hidden sm:inline">Cart</span> 
+              <span>({getCartCount()})</span>
             </button>
           )}
 
+          {/* Login/Signup for Guest */}
           {(!user || role === 'guest') && (
             <button
               onClick={() => setShowLoginModal(true)}
@@ -525,38 +526,18 @@ export default function App() {
             </button>
           )}
 
+          {/* Wallet Balance ONLY (Orders, QR, Logout moved to bottom) */}
           {user && role === 'customer' && (
-            <>
-              <button
-                onClick={() => showToast('Wallet Gateway Opened')}
-                className="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/50 text-amber-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 shadow-inner"
-              >
-                <span>💳</span>
-                <span>₹{currentCustomer?.wallet_balance || 0}</span>
-              </button>
-              <button
-                onClick={() => setShowQRModal(true)}
-                className="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 p-2 rounded-xl text-xs font-medium border border-emerald-700/50 transition"
-              >
-                📱
-              </button>
-              {/* 📦 Added Orders Button Here */}
-              <button
-                onClick={() => setShowOrdersModal(true)}
-                className="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 p-2 rounded-xl text-xs font-medium border border-emerald-700/50 transition"
-                title="My Orders"
-              >
-                📦
-              </button>
-              <button
-                onClick={handleLogout}
-                className="bg-emerald-900 hover:bg-red-600 text-white px-2.5 py-1.5 rounded-xl text-xs font-medium border border-emerald-700/50 transition"
-              >
-                Logout
-              </button>
-            </>
+            <button
+              onClick={() => showToast('Wallet Gateway Opened')}
+              className="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/50 text-amber-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 shadow-inner"
+            >
+              <span>💳</span>
+              <span>₹{currentCustomer?.wallet_balance || 0}</span>
+            </button>
           )}
 
+          {/* Admin / Delivery Exit Button */}
           {user && (role === 'admin' || role === 'delivery') && (
             <button
               onClick={handleLogout}
@@ -684,7 +665,7 @@ export default function App() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input
                     type="text"
-                    placeholder="Product Title (e.g. Vedic Honey)"
+                    placeholder="Product Title"
                     value={newProd.name}
                     onChange={(e) =>
                       setNewProd({ ...newProd, name: e.target.value })
@@ -854,42 +835,6 @@ export default function App() {
               </div>
             </div>
           )}
-
-          {/* TAB: DELIVERY */}
-          {adminTab === 'delivery' && (
-            <div className="space-y-4">
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="font-bold text-xs text-slate-900 mb-3">
-                  🛵 Registered Delivery Partners
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {deliveryBoys.map((d) => (
-                    <div
-                      key={d.id}
-                      className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-100 space-y-1"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-semibold text-xs text-slate-900">
-                            {d.name}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-normal">
-                            📞 {d.phone}
-                          </div>
-                        </div>
-                        <span className="bg-emerald-900 text-emerald-100 text-[10px] font-medium px-2 py-0.5 rounded-full">
-                          Active
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-600 font-normal">
-                        📍 Route: {d.assignedArea}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -1013,9 +958,9 @@ export default function App() {
         </main>
       )}
 
-      {/* FLOATING CART BAR */}
+      {/* FLOATING CART BAR (Moved slightly UP if Bottom Nav is present) */}
       {cart.length > 0 && (role === 'guest' || role === 'customer') && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#0A2E23] text-white p-3 rounded-2xl shadow-2xl z-30 flex items-center justify-between border border-emerald-800/80 backdrop-blur-lg">
+        <div className={`fixed left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#0A2E23] text-white p-3 rounded-2xl shadow-2xl z-30 flex items-center justify-between border border-emerald-800/80 backdrop-blur-lg transition-all ${user && role === 'customer' ? 'bottom-[80px]' : 'bottom-4'}`}>
           <div className="flex items-center gap-2.5">
             <span className="bg-amber-400 text-slate-950 font-bold text-xs px-2.5 py-1 rounded-xl">
               {getCartCount()} {getCartCount() === 1 ? 'Item' : 'Items'}
@@ -1036,11 +981,32 @@ export default function App() {
         </div>
       )}
 
+      {/* PROFESSIONAL BOTTOM NAVIGATION BAR (For Customers) */}
+      {user && role === 'customer' && (
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-t-2xl pb-safe">
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center text-[#0A2E23] transition active:scale-95">
+            <span className="text-xl mb-0.5">🏪</span>
+            <span className="text-[10px] font-bold">Store</span>
+          </button>
+          <button onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23] transition active:scale-95">
+            <span className="text-xl mb-0.5">📦</span>
+            <span className="text-[10px] font-bold">Orders</span>
+          </button>
+          <button onClick={() => setShowQRModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23] transition active:scale-95">
+            <span className="text-xl mb-0.5">📱</span>
+            <span className="text-[10px] font-bold">QR Pass</span>
+          </button>
+          <button onClick={handleLogout} className="flex flex-col items-center text-slate-400 hover:text-red-500 transition active:scale-95">
+            <span className="text-xl mb-0.5">🚪</span>
+            <span className="text-[10px] font-bold">Logout</span>
+          </button>
+        </div>
+      )}
+
       {/* SECURE FULL AUTH MODAL */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl">
-            {/* Top Toggle Selection */}
             <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl">
               <button
                 onClick={() => {
@@ -1073,7 +1039,6 @@ export default function App() {
             </div>
 
             {authRoleTab === 'admin' ? (
-              /* ADMIN LOGIN */
               <>
                 <h3 className="font-bold text-lg text-slate-900 mb-1">
                   Portal Access 👑
@@ -1131,7 +1096,6 @@ export default function App() {
                 </form>
               </>
             ) : (
-              /* CUSTOMER LOGIN/SIGNUP */
               <>
                 <div className="flex justify-between items-start mb-4">
                   <div>
