@@ -593,9 +593,8 @@ export default function App() {
           )}
         </div>
       </header>
-
-      {/* ADMIN DASHBOARD */}
-      {role === 'admin' && (
+{/* ADMIN DASHBOARD */}
+{role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-[#0A2E23] text-white p-4 sm:p-5 rounded-2xl shadow-md border border-emerald-800 flex justify-between items-center">
             <div>
@@ -641,13 +640,19 @@ export default function App() {
                     Total: {customers.length}
                   </span>
                 </div>
+                {customers.length === 0 && (
+                  <div className="text-xs text-center py-5 text-slate-500">
+                    No customers found in database.
+                  </div>
+                )}
                 {customers.map((c) => (
                   <div key={c.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 mb-2 flex justify-between items-center">
                     <div>
                       <div className="font-semibold text-xs text-slate-900">{c.name} (QR: {c.qrCode || 'NR-101'})</div>
                       <div className="text-[11px] text-slate-500">📞 {c.phone} | ✉️ {c.email}</div>
+                      <div className="text-[11px] font-bold text-emerald-800 mt-0.5">Wallet: ₹{c.wallet_balance || 0}</div>
                     </div>
-                    <button onClick={() => handleRecharge(c.id)} className="bg-[#0A2E23] text-white text-xs px-3 py-1.5 rounded-lg">+ ₹500</button>
+                    <button onClick={() => handleRecharge(c.id)} className="bg-[#0A2E23] text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-sm">+ ₹500</button>
                   </div>
                 ))}
               </div>
@@ -666,10 +671,72 @@ export default function App() {
                     <option value="Dairy">🥛 Dairy & Milk</option>
                     <option value="Eggs">🥚 Farm Eggs</option>
                     <option value="Ghee">🏺 Vedic Ghee</option>
+                    <option value="Farm">🌱 Organic Farm</option>
                   </select>
                 </div>
                 <button type="submit" className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-semibold">Save to Supabase Database</button>
               </form>
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <h2 className="font-bold text-xs text-slate-900 mb-2.5">📦 Live Database Inventory</h2>
+                {products.length === 0 && (
+                  <div className="text-xs text-center py-5 text-slate-500">Database is empty. Add a product above.</div>
+                )}
+                <div className="divide-y divide-slate-100">
+                  {products.map((p) => (
+                    <div key={p.id} className="py-2.5 flex justify-between items-center gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-xl">{p.icon || '🌿'}</span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-xs text-slate-900 truncate">{p.name}</div>
+                          <div className="text-[11px] text-emerald-900 font-medium">₹{p.price} / {p.unit}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => setEditingProduct(p)} className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-2.5 py-1 rounded-lg text-xs transition">✏️ Edit</button>
+                        <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-2.5 py-1 rounded-lg text-xs transition">🗑️ Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: FINANCE */}
+          {adminTab === 'finance' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase">Total Sales</div>
+                  <div className="text-lg font-bold text-[#0A2E23] my-0.5">₹{totalSales}</div>
+                </div>
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase">Wallet Recharges</div>
+                  <div className="text-lg font-bold text-emerald-600 my-0.5">₹{totalRecharges}</div>
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="font-bold text-xs text-slate-900">🧾 Live Transaction Logs</h2>
+                </div>
+                {transactions.length === 0 && (
+                  <div className="text-xs text-center py-5 text-slate-500">No transactions recorded yet.</div>
+                )}
+                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
+                  {transactions.map((t, idx) => (
+                    <div key={t.id || idx} className="py-2.5 flex justify-between items-center text-xs gap-2">
+                      <div>
+                        <div className="font-semibold text-slate-800">{t.item}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">Customer: {t.customer_name}</div>
+                      </div>
+                      <div className={`font-bold ${t.item?.includes('Recharge') ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {t.item?.includes('Recharge') ? `+₹${t.amount}` : `-₹${t.amount}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
