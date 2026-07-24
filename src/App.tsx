@@ -806,24 +806,40 @@ export default function App() {
         </div>
       )}
 
-      {/* BOTTOM NAV */}
+      {/* ✨ PREMIUM FLOATING BOTTOM NAVIGATION ✨ */}
       {user && role === 'customer' && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-t-2xl pb-safe">
-          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center text-[#0A2E23]">
-            <span className="text-xl mb-0.5">🏪</span><span className="text-[10px] font-bold">Store</span>
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/80 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-40 px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
+          
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center group relative">
+            <div className="p-2 rounded-2xl bg-gradient-to-br from-[#0A2E23] to-emerald-800 text-amber-200 shadow-md group-active:scale-95 transition-all">
+              <span className="text-lg leading-none block">🏪</span>
+            </div>
+            <span className="text-[10px] font-extrabold text-[#0A2E23] mt-1.5">Store</span>
           </button>
-          <button onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23]">
-            <span className="text-xl mb-0.5">📦</span><span className="text-[10px] font-bold">Orders</span>
+
+          <button onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center group relative">
+            <div className="p-2 rounded-2xl text-slate-400 group-hover:bg-emerald-50 group-hover:text-[#0A2E23] group-active:scale-95 transition-all">
+              <span className="text-lg leading-none block">📦</span>
+            </div>
+            <span className="text-[10px] font-bold text-slate-500 group-hover:text-[#0A2E23] mt-1.5 transition-all">Orders</span>
           </button>
-          <button onClick={() => setShowQRModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23]">
-            <span className="text-xl mb-0.5">📱</span><span className="text-[10px] font-bold">QR Pass</span>
+
+          <button onClick={() => setShowQRModal(true)} className="flex flex-col items-center group relative">
+            <div className="p-2 rounded-2xl text-slate-400 group-hover:bg-emerald-50 group-hover:text-[#0A2E23] group-active:scale-95 transition-all">
+              <span className="text-lg leading-none block">📱</span>
+            </div>
+            <span className="text-[10px] font-bold text-slate-500 group-hover:text-[#0A2E23] mt-1.5 transition-all">QR Pass</span>
           </button>
-          <button onClick={handleLogout} className="flex flex-col items-center text-slate-400 hover:text-red-500">
-            <span className="text-xl mb-0.5">🚪</span><span className="text-[10px] font-bold">Logout</span>
+
+          <button onClick={handleLogout} className="flex flex-col items-center group relative">
+            <div className="p-2 rounded-2xl text-slate-400 group-hover:bg-red-50 group-hover:text-red-500 group-active:scale-95 transition-all">
+              <span className="text-lg leading-none block">🚪</span>
+            </div>
+            <span className="text-[10px] font-bold text-slate-500 group-hover:text-red-500 mt-1.5 transition-all">Logout</span>
           </button>
+
         </div>
       )}
-
       {/* EDIT PRODUCT MODAL (FIXED) */}
       {editingProduct && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
