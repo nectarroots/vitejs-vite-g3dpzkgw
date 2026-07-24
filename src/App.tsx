@@ -12,6 +12,7 @@ export default function App() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [deliveryBoys] = useState<any[]>([
     {
       id: 'd1',
@@ -39,12 +40,17 @@ export default function App() {
   const [showCartModal, setShowCartModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showOrdersModal, setShowOrdersModal] = useState(false); 
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+  const [selectedSubProduct, setSelectedSubProduct] = useState<any>(null);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
+  // Subscription Form States
+  const [subQty, setSubQty] = useState(1);
+  const [subFreq, setSubFreq] = useState<'Daily' | 'Alternate Days'>('Daily');
+  const [subPayType, setSubPayType] = useState<'auto_deduct' | 'scan_deduct'>('scan_deduct');
+
   // Auth States
-  const [authRoleTab, setAuthRoleTab] = useState<'customer' | 'admin'>(
-    'customer'
-  );
+  const [authRoleTab, setAuthRoleTab] = useState<'customer' | 'admin'>('customer');
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
 
   const [emailInput, setEmailInput] = useState('');
@@ -104,17 +110,10 @@ export default function App() {
 
   const fetchLiveDatabaseData = async () => {
     try {
-      const { data: prodData, error: prodErr } = await supabase
-        .from('products')
-        .select('*');
-      if (prodErr) throw prodErr;
-      if (prodData)
-        setProducts(prodData.map((p) => ({ ...p, id: String(p.id) })));
+      const { data: prodData } = await supabase.from('products').select('*');
+      if (prodData) setProducts(prodData.map((p) => ({ ...p, id: String(p.id) })));
 
-      const { data: custData, error: custErr } = await supabase
-        .from('customers')
-        .select('*');
-      if (custErr) throw custErr;
+      const { data: custData } = await supabase.from('customers').select('*');
       if (custData) {
         setCustomers(
           custData.map((c) => ({
@@ -125,12 +124,15 @@ export default function App() {
         );
       }
 
-      const { data: txData, error: txErr } = await supabase
+      const { data: txData } = await supabase
         .from('transactions')
         .select('*')
         .order('created_at', { ascending: false });
-      if (txErr) throw txErr;
       if (txData) setTransactions(txData);
+
+      const { data: subData } = await supabase.from('subscriptions').select('*');
+      if (subData) setSubscriptions(subData);
+
     } catch (err) {
       console.error('Live Sync Error:', err);
     }
@@ -165,13 +167,7 @@ export default function App() {
   const handleCustomerSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-    if (
-      !signupName ||
-      !signupPhone ||
-      !signupAddress ||
-      !emailInput ||
-      !passwordInput
-    ) {
+    if (!signupName || !signupPhone || !signupAddress || !emailInput || !passwordInput) {
       setLoginError('Please fill all required fields.');
       return;
     }
@@ -193,12 +189,9 @@ export default function App() {
         qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}`,
       };
 
-      const { error: dbError } = await supabase
-        .from('customers')
-        .insert([newCustomer]);
+      const { error: dbError } = await supabase.from('customers').insert([newCustomer]);
       if (dbError) {
         setLoginError('Auth successful, but database insert failed.');
-        console.error(dbError);
         return;
       }
 
@@ -241,6 +234,41 @@ export default function App() {
     setLoginError('');
   };
 
+  // CREATE SUBSCRIPTION FUNCTION
+  const handleCreateSubscription = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || role === 'guest') {
+      setShowSubscribeModal(false);
+      setShowLoginModal(true);
+      showToast('Please login to start subscription!', 'error');
+      return;
+    }
+
+    if (!selectedSubProduct || !currentCustomer) return;
+
+    try {
+      const newSub = {
+        customer_id: currentCustomer.id,
+        customer_name: currentCustomer.name,
+        product_name: selectedSubProduct.name,
+        quantity: subQty,
+        price: selectedSubProduct.price * subQty,
+        frequency: subFreq,
+        payment_type: subPayType,
+        status: 'Active'
+      };
+
+      const { error } = await supabase.from('subscriptions').insert([newSub]);
+      if (error) throw error;
+
+      fetchLiveDatabaseData();
+      setShowSubscribeModal(false);
+      showToast(`Subscription Started for ${selectedSubProduct.name}! 📅`);
+    } catch (err: any) {
+      alert("Subscription failed: " + err.message);
+    }
+  };
+
   // LIVE PRODUCT MANAGEMENT
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -268,13 +296,7 @@ export default function App() {
 
     if (data) {
       setProducts([...products, { ...data[0], id: String(data[0].id) }]);
-      setNewProd({
-        name: '',
-        price: '',
-        unit: 'Liter',
-        category: 'Dairy',
-        tag: 'Fresh',
-      });
+      setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
       showToast('Product published to live database!');
     }
   };
@@ -307,8 +329,7 @@ export default function App() {
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this product?'))
-      return;
+    if (!window.confirm('Are you sure you want to delete this product?')) return;
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) {
       alert('Delete Failed: ' + error.message);
@@ -320,9 +341,7 @@ export default function App() {
 
   // CART & CHECKOUT
   const handleAddToCart = (product: any) => {
-    const existingIndex = cart.findIndex(
-      (item) => String(item.id) === String(product.id)
-    );
+    const existingIndex = cart.findIndex((item) => String(item.id) === String(product.id));
     if (existingIndex > -1) {
       const updatedCart = [...cart];
       updatedCart[existingIndex].quantity += 1;
@@ -361,8 +380,7 @@ export default function App() {
     return item ? item.quantity : 0;
   };
 
-  const getCartTotal = () =>
-    cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const getCartTotal = () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const getCartCount = () => cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = async () => {
@@ -375,9 +393,7 @@ export default function App() {
       return;
     }
 
-    const activeCustomer = customers.find(
-      (c) => c.email === user.email || c.id === user.id
-    );
+    const activeCustomer = customers.find((c) => c.email === user.email || c.id === user.id);
 
     if (!activeCustomer) {
       fetchLiveDatabaseData();
@@ -389,10 +405,7 @@ export default function App() {
     const balance = Number(activeCustomer.wallet_balance || 0);
 
     if (balance < total) {
-      showToast(
-        `Insufficient Balance! Wallet: ₹${balance}, Required: ₹${total}`,
-        'error'
-      );
+      showToast(`Insufficient Balance! Wallet: ₹${balance}, Required: ₹${total}`, 'error');
       return;
     }
 
@@ -410,9 +423,7 @@ export default function App() {
         .eq('id', activeCustomer.id);
       if (walletErr) throw walletErr;
 
-      const { error: txErr } = await supabase
-        .from('transactions')
-        .insert(newTxs);
+      const { error: txErr } = await supabase.from('transactions').insert(newTxs);
       if (txErr) throw txErr;
 
       fetchLiveDatabaseData();
@@ -453,10 +464,7 @@ export default function App() {
     }
   };
 
-  const totalRevenue = transactions.reduce(
-    (sum, t) => sum + (t.amount || 0),
-    0
-  );
+  const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   const totalRecharges = transactions
     .filter((t) => t.item?.includes('Recharge'))
     .reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -466,8 +474,7 @@ export default function App() {
     selectedCategory === 'All'
       ? products
       : products.filter(
-          (p) =>
-            (p.category || '').toLowerCase() === selectedCategory.toLowerCase()
+          (p) => (p.category || '').toLowerCase() === selectedCategory.toLowerCase()
         );
 
   return (
@@ -483,7 +490,7 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER SECTION - NOW CLEANER */}
+      {/* HEADER SECTION */}
       <header className="bg-[#0A2E23] text-white px-4 py-3 shadow-md sticky top-0 z-20 flex justify-between items-center backdrop-blur-md">
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="w-9 h-9 bg-gradient-to-br from-amber-300 via-emerald-400 to-emerald-700 rounded-xl flex items-center justify-center text-lg shadow-sm shrink-0">
@@ -504,7 +511,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Cart Icon */}
           {(role === 'guest' || role === 'customer') && (
             <button
               onClick={() => setShowCartModal(true)}
@@ -516,7 +522,6 @@ export default function App() {
             </button>
           )}
 
-          {/* Login/Signup for Guest */}
           {(!user || role === 'guest') && (
             <button
               onClick={() => setShowLoginModal(true)}
@@ -526,7 +531,6 @@ export default function App() {
             </button>
           )}
 
-          {/* Wallet Balance ONLY (Orders, QR, Logout moved to bottom) */}
           {user && role === 'customer' && (
             <button
               onClick={() => showToast('Wallet Gateway Opened')}
@@ -537,7 +541,6 @@ export default function App() {
             </button>
           )}
 
-          {/* Admin / Delivery Exit Button */}
           {user && (role === 'admin' || role === 'delivery') && (
             <button
               onClick={handleLogout}
@@ -549,7 +552,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* ADMIN DASHBOARD COMPONENT */}
+      {/* ADMIN DASHBOARD */}
       {role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-[#0A2E23] text-white p-4 sm:p-5 rounded-2xl shadow-md border border-emerald-800 flex justify-between items-center">
@@ -579,13 +582,7 @@ export default function App() {
                 }`}
               >
                 <span>
-                  {tab === 'customers'
-                    ? '👥'
-                    : tab === 'products'
-                    ? '📦'
-                    : tab === 'finance'
-                    ? '📊'
-                    : '🛵'}
+                  {tab === 'customers' ? '👥' : tab === 'products' ? '📦' : tab === 'finance' ? '📊' : '🛵'}
                 </span>
                 <span className="capitalize">{tab}</span>
               </button>
@@ -597,57 +594,20 @@ export default function App() {
             <div className="space-y-4">
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-3">
-                  <h2 className="font-bold text-sm text-slate-900">
-                    👥 Live Customer Data
-                  </h2>
+                  <h2 className="font-bold text-sm text-slate-900">👥 Live Customer Data</h2>
                   <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-100">
                     Total: {customers.length}
                   </span>
                 </div>
-                {customers.length === 0 && (
-                  <div className="text-xs text-center py-5 text-slate-500">
-                    No customers found in database.
-                  </div>
-                )}
-                <div className="space-y-2.5">
-                  {customers.map((c) => (
-                    <div
-                      key={c.id}
-                      className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-col sm:flex-row justify-between sm:items-center gap-2.5"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-xs text-slate-900 flex items-center gap-2">
-                          <span>{c.name}</span>
-                          <span className="text-[10px] bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded-md">
-                            QR: {c.qrCode || 'NR-101'}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-normal">
-                          📞 {c.phone} | ✉️ {c.email}
-                        </div>
-                        <div className="text-[11px] text-slate-600 font-normal truncate max-w-xs">
-                          🏠 {c.address || 'No address provided'}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-                        <div className="text-right">
-                          <div className="text-[10px] text-slate-400 font-medium uppercase">
-                            Wallet
-                          </div>
-                          <div className="text-sm font-bold text-[#0A2E23]">
-                            ₹{c.wallet_balance ?? 0}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleRecharge(c.id)}
-                          className="bg-[#0A2E23] hover:bg-emerald-900 text-white font-semibold text-xs px-3 py-1.5 rounded-lg shadow-sm transition shrink-0"
-                        >
-                          + Add ₹500
-                        </button>
-                      </div>
+                {customers.map((c) => (
+                  <div key={c.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 mb-2 flex justify-between items-center">
+                    <div>
+                      <div className="font-semibold text-xs text-slate-900">{c.name} (QR: {c.qrCode || 'NR-101'})</div>
+                      <div className="text-[11px] text-slate-500">📞 {c.phone} | ✉️ {c.email}</div>
                     </div>
-                  ))}
-                </div>
+                    <button onClick={() => handleRecharge(c.id)} className="bg-[#0A2E23] text-white text-xs px-3 py-1.5 rounded-lg">+ ₹500</button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -655,184 +615,19 @@ export default function App() {
           {/* TAB: PRODUCTS */}
           {adminTab === 'products' && (
             <div className="space-y-4">
-              <form
-                onSubmit={handleAddProduct}
-                className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3"
-              >
-                <h2 className="font-bold text-xs text-slate-900">
-                  + Publish Live Product
-                </h2>
+              <form onSubmit={handleAddProduct} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <h2 className="font-bold text-xs text-slate-900">+ Publish Live Product</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Product Title"
-                    value={newProd.name}
-                    onChange={(e) =>
-                      setNewProd({ ...newProd, name: e.target.value })
-                    }
-                    className="text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-normal"
-                    required
-                  />
-                  <input
-                    type="number"
-                    placeholder="Price (₹)"
-                    value={newProd.price}
-                    onChange={(e) =>
-                      setNewProd({ ...newProd, price: e.target.value })
-                    }
-                    className="text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-normal"
-                    required
-                  />
-                  <select
-                    value={newProd.category}
-                    onChange={(e) =>
-                      setNewProd({ ...newProd, category: e.target.value })
-                    }
-                    className="text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-normal"
-                  >
+                  <input type="text" placeholder="Product Title" value={newProd.name} onChange={(e) => setNewProd({ ...newProd, name: e.target.value })} className="text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+                  <input type="number" placeholder="Price (₹)" value={newProd.price} onChange={(e) => setNewProd({ ...newProd, price: e.target.value })} className="text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+                  <select value={newProd.category} onChange={(e) => setNewProd({ ...newProd, category: e.target.value })} className="text-xs p-2.5 bg-slate-50 border rounded-xl">
                     <option value="Dairy">🥛 Dairy & Milk</option>
                     <option value="Eggs">🥚 Farm Eggs</option>
                     <option value="Ghee">🏺 Vedic Ghee</option>
-                    <option value="Farm">🌱 Organic Farm</option>
                   </select>
                 </div>
-                <button
-                  type="submit"
-                  className="w-full bg-[#0A2E23] text-white text-xs font-semibold py-2.5 rounded-xl shadow-sm"
-                >
-                  Save to Supabase Database
-                </button>
+                <button type="submit" className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-semibold">Save to Supabase Database</button>
               </form>
-
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="font-bold text-xs text-slate-900 mb-2.5">
-                  📦 Live Database Inventory
-                </h2>
-                {products.length === 0 && (
-                  <div className="text-xs text-center py-5 text-slate-500">
-                    Database is empty. Add a product above.
-                  </div>
-                )}
-                <div className="divide-y divide-slate-100">
-                  {products.map((p) => (
-                    <div
-                      key={p.id}
-                      className="py-2.5 flex justify-between items-center gap-2"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-xl">{p.icon || '🌿'}</span>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-xs text-slate-900 truncate">
-                            {p.name}
-                          </div>
-                          <div className="text-[11px] text-emerald-900 font-medium">
-                            ₹{p.price} / {p.unit} | Category: {p.category}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => setEditingProduct(p)}
-                          className="bg-amber-100 text-amber-900 font-semibold px-2.5 py-1 rounded-lg text-xs"
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProduct(p.id)}
-                          className="bg-red-50 text-red-600 font-semibold px-2.5 py-1 rounded-lg text-xs"
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: FINANCIALS */}
-          {adminTab === 'finance' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {[
-                  {
-                    label: 'Today Revenue',
-                    val: totalSales,
-                    tag: '🟢 Live Orders',
-                  },
-                  {
-                    label: 'Weekly Income',
-                    val: totalSales * 5.2,
-                    tag: '📈 Estimated',
-                  },
-                  {
-                    label: 'Monthly Total',
-                    val: totalSales * 22,
-                    tag: '📅 Current Month',
-                  },
-                  {
-                    label: 'Yearly Revenue',
-                    val: totalSales * 240,
-                    tag: '📊 FY 2026',
-                  },
-                ].map((s, i) => (
-                  <div
-                    key={i}
-                    className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm"
-                  >
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase">
-                      {s.label}
-                    </div>
-                    <div className="text-lg font-bold text-[#0A2E23] my-0.5">
-                      ₹{s.val}
-                    </div>
-                    <div className="text-[10px] text-emerald-800 font-medium">
-                      {s.tag}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center mb-3">
-                  <h2 className="font-bold text-xs text-slate-900">
-                    🧾 Live Transaction Logs
-                  </h2>
-                </div>
-                {transactions.length === 0 && (
-                  <div className="text-xs text-center py-5 text-slate-500">
-                    No transactions recorded yet.
-                  </div>
-                )}
-                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
-                  {transactions.map((t, idx) => (
-                    <div
-                      key={t.id || idx}
-                      className="py-2.5 flex justify-between items-center text-xs gap-2"
-                    >
-                      <div>
-                        <div className="font-semibold text-slate-800">
-                          {t.item}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-normal">
-                          Customer: {t.customer_name}
-                        </div>
-                      </div>
-                      <div
-                        className={`font-bold ${
-                          t.item?.includes('Recharge')
-                            ? 'text-emerald-700'
-                            : 'text-red-600'
-                        }`}
-                      >
-                        {t.item?.includes('Recharge')
-                          ? `+₹${t.amount}`
-                          : `-₹${t.amount}`}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -841,19 +636,9 @@ export default function App() {
       {/* STOREFRONT COMPONENT */}
       {(role === 'guest' || role === 'customer') && (
         <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-4">
-          <div className="bg-gradient-to-br from-[#0A2E23] via-[#0E3D2F] to-[#051C15] text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-emerald-800/50 relative overflow-hidden">
-            <div className="relative z-10">
-              <div className="inline-flex items-center gap-1 bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-2">
-                <span>✨ 100% Unadulterated Guarantee</span>
-              </div>
-              <h2 className="text-base sm:text-lg font-bold text-white leading-tight">
-                Pure A2 Milk & Organic Farm Produce
-              </h2>
-              <p className="text-xs text-emerald-200/90 mt-1 font-normal leading-relaxed">
-                Untouched by human hands, chilled to 4°C within 1 hour of
-                milking.
-              </p>
-            </div>
+          <div className="bg-gradient-to-br from-[#0A2E23] via-[#0E3D2F] to-[#051C15] text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-emerald-800/50">
+            <h2 className="text-base sm:text-lg font-bold">Pure A2 Milk & Organic Farm Produce</h2>
+            <p className="text-xs text-emerald-200/90 mt-1">Daily subscription & fresh farm delivery at your doorstep.</p>
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -862,408 +647,150 @@ export default function App() {
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition border ${
-                  selectedCategory === cat
-                    ? 'bg-[#0A2E23] text-amber-200 border-[#0A2E23] shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50'
+                  selectedCategory === cat ? 'bg-[#0A2E23] text-amber-200 border-[#0A2E23]' : 'bg-white text-slate-700 border-slate-200'
                 }`}
               >
-                {cat === 'All'
-                  ? '🌟 All Items'
-                  : cat === 'Dairy'
-                  ? '🥛 Dairy & Milk'
-                  : cat === 'Eggs'
-                  ? '🥚 Farm Eggs'
-                  : cat === 'Ghee'
-                  ? '🏺 Vedic Ghee'
-                  : '🌱 Compost'}
+                {cat}
               </button>
             ))}
           </div>
 
-          {products.length === 0 ? (
-            <div className="text-center py-10 text-slate-500">
-              <div className="text-4xl mb-2">🌱</div>
-              <p className="text-sm font-semibold">Store is currently empty.</p>
-              <p className="text-xs">
-                Waiting for admin to add products to the database.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {filteredProducts.map((p) => {
-                const qtyInCart = getCartQuantity(p.id);
-                return (
-                  <div
-                    key={p.id}
-                    className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between hover:shadow-md transition duration-200 group"
-                  >
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-2xl group-hover:scale-105 transition shrink-0">
-                          {p.icon || '🌿'}
-                        </div>
-                        <span className="bg-amber-50 text-amber-900 text-[10px] font-semibold px-1.5 py-0.5 rounded border border-amber-200">
-                          ★ {p.rating || '4.9'}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wide block mb-0.5">
-                        {p.tag || 'Pure'}
-                      </span>
-                      <div className="font-semibold text-xs sm:text-sm text-slate-800 leading-snug line-clamp-2">
-                        {p.name}
-                      </div>
-                      <div className="flex items-baseline gap-1 mt-2">
-                        <span className="text-sm font-bold text-[#0A2E23]">
-                          ₹{p.price}
-                        </span>
-                        <span className="text-[11px] font-normal text-slate-400">
-                          / {p.unit}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      {qtyInCart > 0 ? (
-                        <div className="flex items-center justify-between bg-emerald-50/90 rounded-xl p-1 border border-emerald-200">
-                          <button
-                            onClick={() => handleUpdateCartQuantity(p.id, -1)}
-                            className="w-7 h-7 bg-white rounded-lg font-bold text-sm shadow-sm border border-slate-200 text-slate-800"
-                          >
-                            -
-                          </button>
-                          <span className="text-xs font-bold text-[#0A2E23] px-1">
-                            {qtyInCart}
-                          </span>
-                          <button
-                            onClick={() => handleUpdateCartQuantity(p.id, 1)}
-                            className="w-7 h-7 bg-[#0A2E23] rounded-lg font-bold text-sm text-white shadow-sm"
-                          >
-                            +
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleAddToCart(p)}
-                          className="w-full bg-[#0A2E23] hover:bg-emerald-900 text-white font-semibold py-2 rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-1 active:scale-95"
-                        >
-                          <span>🛒</span>
-                          <span>Add to Cart</span>
-                        </button>
-                      )}
-                    </div>
+          <div className="grid grid-cols-2 gap-3">
+            {filteredProducts.map((p) => {
+              const qtyInCart = getCartQuantity(p.id);
+              return (
+                <div key={p.id} className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                  <div>
+                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-2xl mb-2">{p.icon || '🌿'}</div>
+                    <div className="font-semibold text-xs text-slate-800">{p.name}</div>
+                    <div className="text-sm font-bold text-[#0A2E23] mt-1">₹{p.price} <span className="text-[10px] font-normal text-slate-400">/ {p.unit}</span></div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+
+                  <div className="mt-3 space-y-1.5">
+                    {/* Daily Subscription Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedSubProduct(p);
+                        setShowSubscribeModal(true);
+                      }}
+                      className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold py-1.5 rounded-xl text-[11px] shadow-sm flex items-center justify-center gap-1"
+                    >
+                      <span>📅 Subscribe Daily</span>
+                    </button>
+
+                    {/* One Time Buy Button */}
+                    {qtyInCart > 0 ? (
+                      <div className="flex items-center justify-between bg-emerald-50 rounded-xl p-1 border border-emerald-200">
+                        <button onClick={() => handleUpdateCartQuantity(p.id, -1)} className="w-6 h-6 bg-white rounded font-bold text-xs">-</button>
+                        <span className="text-xs font-bold text-[#0A2E23]">{qtyInCart}</span>
+                        <button onClick={() => handleUpdateCartQuantity(p.id, 1)} className="w-6 h-6 bg-[#0A2E23] text-white rounded font-bold text-xs">+</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => handleAddToCart(p)} className="w-full bg-[#0A2E23] text-white font-medium py-1.5 rounded-xl text-xs">
+                        🛒 Buy Once
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </main>
       )}
 
-      {/* FLOATING CART BAR (Moved slightly UP if Bottom Nav is present) */}
-      {cart.length > 0 && (role === 'guest' || role === 'customer') && (
-        <div className={`fixed left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#0A2E23] text-white p-3 rounded-2xl shadow-2xl z-30 flex items-center justify-between border border-emerald-800/80 backdrop-blur-lg transition-all ${user && role === 'customer' ? 'bottom-[80px]' : 'bottom-4'}`}>
-          <div className="flex items-center gap-2.5">
-            <span className="bg-amber-400 text-slate-950 font-bold text-xs px-2.5 py-1 rounded-xl">
-              {getCartCount()} {getCartCount() === 1 ? 'Item' : 'Items'}
-            </span>
-            <div>
-              <div className="text-xs font-bold text-white">
-                Total: ₹{getCartTotal()}
+      {/* 📅 DAILY SUBSCRIPTION MODAL (WITH BOTH CHOICES) */}
+      {showSubscribeModal && selectedSubProduct && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                <span>🥛 Daily Subscription Plan</span>
+              </h3>
+              <button onClick={() => setShowSubscribeModal(false)} className="text-slate-400 font-bold">✕</button>
+            </div>
+
+            <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center gap-3">
+              <span className="text-3xl">{selectedSubProduct.icon || '🌿'}</span>
+              <div>
+                <div className="font-bold text-xs text-slate-900">{selectedSubProduct.name}</div>
+                <div className="text-xs font-bold text-[#0A2E23]">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div>
               </div>
             </div>
-          </div>
-          <button
-            onClick={() => setShowCartModal(true)}
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition active:scale-95 shadow-md"
-          >
-            <span>View Cart</span>
-            <span>➔</span>
-          </button>
-        </div>
-      )}
 
-      {/* PROFESSIONAL BOTTOM NAVIGATION BAR (For Customers) */}
-      {user && role === 'customer' && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-t-2xl pb-safe">
-          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center text-[#0A2E23] transition active:scale-95">
-            <span className="text-xl mb-0.5">🏪</span>
-            <span className="text-[10px] font-bold">Store</span>
-          </button>
-          <button onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23] transition active:scale-95">
-            <span className="text-xl mb-0.5">📦</span>
-            <span className="text-[10px] font-bold">Orders</span>
-          </button>
-          <button onClick={() => setShowQRModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23] transition active:scale-95">
-            <span className="text-xl mb-0.5">📱</span>
-            <span className="text-[10px] font-bold">QR Pass</span>
-          </button>
-          <button onClick={handleLogout} className="flex flex-col items-center text-slate-400 hover:text-red-500 transition active:scale-95">
-            <span className="text-xl mb-0.5">🚪</span>
-            <span className="text-[10px] font-bold">Logout</span>
-          </button>
-        </div>
-      )}
-
-      {/* SECURE FULL AUTH MODAL */}
-      {showLoginModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl">
-            <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl">
-              <button
-                onClick={() => {
-                  setAuthRoleTab('customer');
-                  setAuthView('login');
-                  setLoginError('');
-                }}
-                className={`w-1/2 py-2 text-xs font-bold rounded-lg transition ${
-                  authRoleTab === 'customer'
-                    ? 'bg-white shadow-sm text-emerald-900'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                👤 Customer
-              </button>
-              <button
-                onClick={() => {
-                  setAuthRoleTab('admin');
-                  setAuthView('login');
-                  setLoginError('');
-                }}
-                className={`w-1/2 py-2 text-xs font-bold rounded-lg transition ${
-                  authRoleTab === 'admin'
-                    ? 'bg-white shadow-sm text-emerald-900'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                🛡️ Admin
-              </button>
-            </div>
-
-            {authRoleTab === 'admin' ? (
-              <>
-                <h3 className="font-bold text-lg text-slate-900 mb-1">
-                  Portal Access 👑
-                </h3>
-                <p className="text-xs text-slate-500 mb-4">
-                  Enter secure credentials to access live dashboard.
-                </p>
-                <form onSubmit={handleAdminLogin} className="space-y-3">
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-700 block mb-1">
-                      Admin Email
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="admin@nectarroots.com"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-700 block mb-1">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="••••"
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                      required
-                    />
-                  </div>
-                  {loginError && (
-                    <div className="text-[11px] text-red-600 font-semibold text-center">
-                      {loginError}
-                    </div>
-                  )}
-                  <div className="flex gap-2 pt-2">
+            <form onSubmit={handleCreateSubscription} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Select Quantity per day:</label>
+                <div className="flex items-center gap-3">
+                  {[1, 2, 3, 5].map((q) => (
                     <button
+                      key={q}
                       type="button"
-                      onClick={closeModal}
-                      className="w-1/3 bg-slate-100 text-slate-700 text-xs py-2.5 rounded-xl font-semibold"
+                      onClick={() => setSubQty(q)}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${subQty === q ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
                     >
-                      Cancel
+                      {q} {selectedSubProduct.unit}
                     </button>
-                    <button
-                      type="submit"
-                      className="w-2/3 bg-slate-900 text-white text-xs py-2.5 rounded-xl font-bold shadow-sm"
-                    >
-                      Login Live ➔
-                    </button>
-                  </div>
-                </form>
-              </>
-            ) : (
-              <>
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900">
-                      {authView === 'login'
-                        ? 'Welcome Back 👋'
-                        : 'Create Account 🌱'}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-normal mt-0.5">
-                      {authView === 'login'
-                        ? 'Login to continue.'
-                        : 'Join for fresh organic delivery.'}
-                    </p>
-                  </div>
+                  ))}
                 </div>
+              </div>
 
-                <form className="space-y-3">
-                  {authView === 'signup' && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="col-span-2">
-                        <input
-                          type="text"
-                          placeholder="Full Name"
-                          value={signupName}
-                          onChange={(e) => setSignupName(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="tel"
-                          placeholder="Mobile Number"
-                          value={signupPhone}
-                          onChange={(e) => setSignupPhone(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <textarea
-                          placeholder="Delivery Address"
-                          value={signupAddress}
-                          onChange={(e) => setSignupAddress(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl resize-none h-14"
-                        />
-                      </div>
-                    </div>
-                  )}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Delivery Frequency:</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSubFreq('Daily')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border ${subFreq === 'Daily' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                  >
+                    📅 Everyday
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSubFreq('Alternate Days')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border ${subFreq === 'Alternate Days' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                  >
+                    🗓️ Alternate Days
+                  </button>
+                </div>
+              </div>
 
-                  <div>
+              {/* PAYMENT CUT CHOICE (THE 2 OPTIONS) */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Payment Cut Preference:</label>
+                <div className="space-y-2">
+                  <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer ${subPayType === 'scan_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
                     <input
-                      type="email"
-                      placeholder="Email Address"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                      required
+                      type="radio"
+                      name="payType"
+                      checked={subPayType === 'scan_deduct'}
+                      onChange={() => setSubPayType('scan_deduct')}
+                      className="mt-0.5"
                     />
-                  </div>
-                  <div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">📱 Cut Money After QR Code Scan</div>
+                      <div className="text-[10px] text-slate-500">Delivery boy scans your QR code at doorstep, then money is deducted.</div>
+                    </div>
+                  </label>
+
+                  <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer ${subPayType === 'auto_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
                     <input
-                      type="password"
-                      placeholder="Password"
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                      required
+                      type="radio"
+                      name="payType"
+                      checked={subPayType === 'auto_deduct'}
+                      onChange={() => setSubPayType('auto_deduct')}
+                      className="mt-0.5"
                     />
-                  </div>
-
-                  {loginError && (
-                    <div className="text-[11px] text-red-600 font-semibold text-center">
-                      {loginError}
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">⚡ Auto-Deduct Every Morning</div>
+                      <div className="text-[10px] text-slate-500">Money auto-deducts daily. Delivery boy scans QR code to confirm delivery.</div>
                     </div>
-                  )}
+                  </label>
+                </div>
+              </div>
 
-                  {authView === 'login' ? (
-                    <div className="pt-2 space-y-2.5">
-                      <button
-                        type="button"
-                        onClick={handlePasswordLogin}
-                        className="w-full bg-[#0A2E23] text-white text-xs py-3 rounded-xl font-bold shadow-sm"
-                      >
-                        Login with Password
-                      </button>
-                      <p className="text-center text-[11px] text-slate-500 pt-2">
-                        New here?{' '}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAuthView('signup');
-                            setLoginError('');
-                          }}
-                          className="font-bold text-[#0A2E23] hover:underline"
-                        >
-                          Sign up now
-                        </button>
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="pt-2 space-y-3">
-                      <button
-                        type="button"
-                        onClick={handleCustomerSignup}
-                        className="w-full bg-[#0A2E23] text-white text-xs py-3 rounded-xl font-bold shadow-sm"
-                      >
-                        Create Account Securely
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAuthView('login');
-                          setLoginError('');
-                        }}
-                        className="w-full text-[11px] font-bold text-[#0A2E23] hover:underline"
-                      >
-                        Back to Login
-                      </button>
-                    </div>
-                  )}
-                </form>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* EDIT PRODUCT MODAL */}
-      {editingProduct && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-xl space-y-3">
-            <h3 className="font-bold text-sm text-slate-900">
-              Edit Live Product
-            </h3>
-            <form onSubmit={handleUpdateProduct} className="space-y-3">
-              <input
-                type="text"
-                value={editingProduct.name}
-                onChange={(e) =>
-                  setEditingProduct({ ...editingProduct, name: e.target.value })
-                }
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-normal"
-                required
-              />
-              <input
-                type="number"
-                value={editingProduct.price}
-                onChange={(e) =>
-                  setEditingProduct({
-                    ...editingProduct,
-                    price: Number(e.target.value),
-                  })
-                }
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-normal"
-                required
-              />
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setEditingProduct(null)}
-                  className="w-1/2 bg-slate-100 text-slate-700 text-xs py-2 rounded-xl font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 bg-[#0A2E23] text-white text-xs py-2 rounded-xl font-semibold shadow-sm"
-                >
-                  Save to DB
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-[#0A2E23] text-amber-200 font-bold py-3 rounded-xl text-xs shadow-md">
+                  Confirm Subscription (₹{selectedSubProduct.price * subQty} / day) ➔
                 </button>
               </div>
             </form>
@@ -1271,102 +798,59 @@ export default function App() {
         </div>
       )}
 
-      {/* CART MODAL */}
-      {showCartModal && (
+      {/* BOTTOM NAVIGATION BAR */}
+      {user && role === 'customer' && (
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-t-2xl">
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center text-[#0A2E23]">
+            <span className="text-xl mb-0.5">🏪</span>
+            <span className="text-[10px] font-bold">Store</span>
+          </button>
+          <button onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23]">
+            <span className="text-xl mb-0.5">📦</span>
+            <span className="text-[10px] font-bold">Orders</span>
+          </button>
+          <button onClick={() => setShowQRModal(true)} className="flex flex-col items-center text-slate-400 hover:text-[#0A2E23]">
+            <span className="text-xl mb-0.5">📱</span>
+            <span className="text-[10px] font-bold">QR Pass</span>
+          </button>
+          <button onClick={handleLogout} className="flex flex-col items-center text-slate-400 hover:text-red-500">
+            <span className="text-xl mb-0.5">🚪</span>
+            <span className="text-[10px] font-bold">Logout</span>
+          </button>
+        </div>
+      )}
+
+      {/* MODALS: LOGIN, CART, QR, ORDERS */}
+      {showLoginModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-sm sm:max-w-md md:max-w-lg w-full shadow-xl border border-slate-100 max-h-[85vh] flex flex-col justify-between">
-            <div>
-              <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 mb-3">
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                  <span>🛒 Shopping Cart</span>
-                </h3>
-                <button
-                  onClick={() => setShowCartModal(false)}
-                  className="text-slate-400 font-bold hover:text-slate-700"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {cart.length === 0 ? (
-                <div className="py-10 text-center space-y-3">
-                  <div className="text-5xl">🛒</div>
-                  <p className="text-sm font-semibold text-slate-700">
-                    Your cart is empty!
-                  </p>
-                  <p className="text-xs text-slate-500 pb-2">
-                    Looks like you haven't added anything yet.
-                  </p>
-                  <button
-                    onClick={() => setShowCartModal(false)}
-                    className="bg-[#0A2E23] hover:bg-emerald-900 text-white font-semibold px-5 py-2.5 rounded-xl text-xs transition active:scale-95 shadow-sm"
-                  >
-                    Browse Products
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
-                  {cart.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-3 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-200/80"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{item.icon}</span>
-                        <div>
-                          <div className="font-semibold text-xs text-slate-800">
-                            {item.name}
-                          </div>
-                          <div className="text-[11px] text-emerald-900 font-medium mt-0.5">
-                            ₹{item.price} / {item.unit}{' '}
-                            <span className="text-slate-300 mx-1">|</span>
-                            <span className="font-bold text-[#0A2E23]">
-                              Total: ₹{item.price * item.quantity}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleUpdateCartQuantity(item.id, -1)}
-                          className="w-7 h-7 bg-white rounded-lg font-bold text-sm shadow-sm border border-slate-200 flex items-center justify-center text-slate-700"
-                        >
-                          -
-                        </button>
-                        <span className="text-xs font-bold text-slate-900 w-3 text-center">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => handleUpdateCartQuantity(item.id, 1)}
-                          className="w-7 h-7 bg-[#0A2E23] rounded-lg font-bold text-sm text-white shadow-sm flex items-center justify-center"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl">
+              <button onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-lg ${authRoleTab === 'customer' ? 'bg-white text-emerald-900 shadow-sm' : 'text-slate-500'}`}>👤 Customer</button>
+              <button onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-lg ${authRoleTab === 'admin' ? 'bg-white text-emerald-900 shadow-sm' : 'text-slate-500'}`}>🛡️ Admin</button>
             </div>
-
-            {cart.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 mt-4 space-y-2.5">
-                <div className="flex justify-between items-center text-xs font-bold text-slate-900">
-                  <span>Total Amount</span>
-                  <span className="text-[#0A2E23] text-base">
-                    ₹{getCartTotal()}
-                  </span>
-                </div>
-                <button
-                  onClick={handleCheckout}
-                  className="w-full bg-[#0A2E23] hover:bg-emerald-900 text-amber-200 font-semibold py-3 rounded-xl text-xs shadow-md transition active:scale-95 mt-1"
-                >
-                  Proceed to Checkout ➔
-                </button>
-                <p className="text-[10px] text-center text-slate-500 font-medium pt-1">
-                  🔒 Wallet balance will be deducted securely.
-                </p>
-              </div>
+            {authRoleTab === 'admin' ? (
+              <form onSubmit={handleAdminLogin} className="space-y-3">
+                <input type="email" placeholder="Admin Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+                <button type="submit" className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-bold">Login Admin ➔</button>
+              </form>
+            ) : (
+              <form className="space-y-3">
+                {authView === 'signup' && (
+                  <>
+                    <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" />
+                    <input type="tel" placeholder="Mobile Number" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" />
+                    <textarea placeholder="Delivery Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl h-14" />
+                  </>
+                )}
+                <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+                {authView === 'login' ? (
+                  <button type="button" onClick={handlePasswordLogin} className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-bold">Login ➔</button>
+                ) : (
+                  <button type="button" onClick={handleCustomerSignup} className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-bold">Sign Up ➔</button>
+                )}
+              </form>
             )}
           </div>
         </div>
@@ -1376,60 +860,33 @@ export default function App() {
       {showQRModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-white rounded-2xl p-5 max-w-xs w-full text-center space-y-3 shadow-xl">
-            <h3 className="font-bold text-sm text-slate-900">
-              Delivery Identifier QR
-            </h3>
+            <h3 className="font-bold text-sm text-slate-900">Delivery Identifier QR</h3>
             <div className="p-4 bg-emerald-50 rounded-xl inline-block border border-emerald-200">
               <div className="text-5xl">🏁</div>
-              <div className="text-xs font-mono font-bold mt-2 text-emerald-950">
-                {currentCustomer?.qrCode}
-              </div>
+              <div className="text-xs font-mono font-bold mt-2 text-emerald-950">{currentCustomer?.qrCode}</div>
             </div>
-            <p className="text-[11px] text-slate-500 font-normal">
-              Show this QR code to the delivery agent for verification.
-            </p>
-            <button
-              onClick={() => setShowQRModal(false)}
-              className="w-full bg-[#0A2E23] text-white text-xs font-semibold py-2.5 rounded-xl shadow-sm"
-            >
-              Close
-            </button>
+            <p className="text-[11px] text-slate-500">Show this QR code to delivery agent for verification.</p>
+            <button onClick={() => setShowQRModal(false)} className="w-full bg-[#0A2E23] text-white text-xs font-semibold py-2 rounded-xl">Close</button>
           </div>
         </div>
       )}
 
-      {/* 📦 ORDERS HISTORY MODAL */}
+      {/* ORDERS MODAL */}
       {showOrdersModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-xl border border-slate-100 max-h-[85vh] flex flex-col justify-between">
-            <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 mb-3">
-              <h3 className="font-bold text-sm text-slate-900">📦 My Orders & Activity</h3>
-              <button onClick={() => setShowOrdersModal(false)} className="text-slate-400 font-bold hover:text-slate-700 text-lg">✕</button>
+          <div className="bg-white rounded-2xl p-4 max-w-sm w-full shadow-xl space-y-3">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <h3 className="font-bold text-sm text-slate-900">📦 Subscriptions & Orders</h3>
+              <button onClick={() => setShowOrdersModal(false)} className="text-slate-400 font-bold">✕</button>
             </div>
-            
-            <div className="space-y-3 overflow-y-auto max-h-[60vh] pr-1">
-              {transactions.filter(t => t.customer_name === currentCustomer?.name).length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-4xl mb-2">🛒</div>
-                  <div className="text-slate-500 text-xs font-medium">No orders found yet.</div>
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              <h4 className="text-xs font-bold text-emerald-900">Active Subscriptions:</h4>
+              {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
+                <div key={idx} className="p-2.5 bg-emerald-50/50 rounded-xl border border-emerald-100 text-xs">
+                  <div className="font-bold text-slate-800">{s.product_name} ({s.quantity} qty)</div>
+                  <div className="text-[10px] text-slate-500">Mode: {s.payment_type === 'scan_deduct' ? '📱 Cut on Scan' : '⚡ Auto-Deduct'} | {s.frequency}</div>
                 </div>
-              ) : (
-                transactions
-                  .filter(t => t.customer_name === currentCustomer?.name)
-                  .map((t, idx) => (
-                    <div key={t.id || idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex justify-between items-center gap-2">
-                      <div>
-                        <div className="font-semibold text-xs text-slate-800">{t.item}</div>
-                        <div className="text-[10px] text-slate-400 font-normal mt-0.5">
-                          {t.created_at ? new Date(t.created_at).toLocaleDateString() : 'Recent'}
-                        </div>
-                      </div>
-                      <div className={`font-bold text-xs ${t.item?.includes('Recharge') ? 'text-emerald-700' : 'text-slate-700'}`}>
-                        {t.item?.includes('Recharge') ? `+₹${t.amount}` : `-₹${t.amount}`}
-                      </div>
-                    </div>
-                  ))
-              )}
+              ))}
             </div>
           </div>
         </div>
