@@ -8,7 +8,6 @@ export default function App() {
     'products' | 'customers' | 'finance' | 'delivery' | 'paused'
   >('products');
 
-  // Live States
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -17,7 +16,6 @@ export default function App() {
   const [cart, setCart] = useState<any[]>(() => JSON.parse(localStorage.getItem('nr_cart') || '[]'));
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Modal States
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -32,7 +30,7 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
   const [deliveryTab, setDeliveryTab] = useState<'pending' | 'history'>('pending');
-  const [currentBanner, setCurrentBanner] = useState(0); // For Auto-Scrolling Banner
+  const [currentBanner, setCurrentBanner] = useState(0);
 
   const [subQty, setSubQty] = useState(1);
   const [subFreq, setSubFreq] = useState<'Daily' | 'Alternate Days'>('Daily');
@@ -53,7 +51,6 @@ export default function App() {
 
   const [newProd, setNewProd] = useState({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
 
-  // SUPABASE & AUTO-SCROLL BANNER EFFECT
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
@@ -64,7 +61,6 @@ export default function App() {
     });
     fetchLiveDatabaseData();
 
-    // Auto-Scroll Banner Timer (Changes every 4 seconds)
     const bannerTimer = setInterval(() => {
       setCurrentBanner((prev) => (prev + 1) % 2); 
     }, 4000);
@@ -115,6 +111,7 @@ export default function App() {
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Secure Dashboard Accessed 👑'); closeModal(); }
   };
+
   const handleCustomerSignup = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     if (!signupName || !signupPhone || !signupAddress || !emailInput || !passwordInput) return setLoginError('Fill all fields.');
@@ -126,17 +123,21 @@ export default function App() {
       fetchLiveDatabaseData(); showToast('Account Created! 🎉'); closeModal();
     }
   };
+
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Logged in successfully! 🔓'); closeModal(); }
   };
+
   const handleForgotPassword = async () => {
     if (!emailInput) return setLoginError('Enter email to reset.');
     const { error } = await supabase.auth.resetPasswordForEmail(emailInput);
     if (error) setLoginError(error.message); else { showToast('Reset link sent! 📧'); setLoginError(''); }
   };
+
   const handleLogout = async () => { await supabase.auth.signOut(); setRole('guest'); showToast('Securely logged out 👋'); };
+
   const closeModal = () => {
     setShowLoginModal(false); setAuthView('login'); setAuthRoleTab('customer');
     setEmailInput(''); setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setLoginError('');
@@ -187,11 +188,13 @@ export default function App() {
     const { data } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag }]).select();
     if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
   };
+
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editingProduct) return;
     await supabase.from('products').update({ name: editingProduct.name, price: editingProduct.price, category: editingProduct.category }).eq('id', editingProduct.id);
     setProducts(products.map((p) => String(p.id) === String(editingProduct.id) ? editingProduct : p)); setEditingProduct(null); showToast('Product updated!');
   };
+
   const handleDeleteProduct = async (id: string) => {
     if (!window.confirm('Delete this product?')) return;
     await supabase.from('products').delete().eq('id', id); setProducts(products.filter((p) => String(p.id) !== String(id))); showToast('Product deleted!');
@@ -203,6 +206,7 @@ export default function App() {
     else setCart([...cart, { id: String(product.id), name: product.name, price: Number(product.price), unit: product.unit || 'Unit', icon: product.icon || '🌿', quantity: 1 }]);
     showToast(`Added ${product.name}`);
   };
+
   const handleUpdateCartQuantity = (id: any, delta: number) => setCart(cart.map((item) => String(item.id) === String(id) ? { ...item, quantity: item.quantity + delta > 0 ? item.quantity + delta : 0 } : item).filter(i => i.quantity > 0) as any);
   const getCartQuantity = (id: any) => cart.find((i) => String(i.id) === String(id))?.quantity || 0;
   const getCartTotal = () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -241,7 +245,6 @@ export default function App() {
   const totalSales = totalRevenue - totalRecharges;
   const filteredProducts = selectedCategory === 'All' ? products : products.filter((p) => (p.category || '').toLowerCase() === selectedCategory.toLowerCase());
 
-  // Carousel Banner Data
   const banners = [
     { title: "Pure A2 Milk & Farm Produce", sub: "Straight from soil to your soul. 🌾", bg: "from-[#1E3F2D] to-[#2C523D]", icon: "🏺" },
     { title: "Recharge Wallet & Subscribe", sub: "100% Contactless Daily Service. 🛵", bg: "from-[#B5651D] to-[#965216]", icon: "💳" }
@@ -256,7 +259,6 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER SECTION */}
       <header className="bg-[#1E3F2D] text-[#F4F0E6] px-3 sm:px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)] sticky top-0 z-20 flex justify-between items-center backdrop-blur-md border-b border-[#152E20] gap-2">
         <div className="flex items-center gap-2 min-w-0"> 
           <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#2C523D] border border-[#3A6B50] rounded-2xl flex items-center justify-center text-lg sm:text-xl shadow-inner shrink-0">🌿</div>
@@ -273,9 +275,11 @@ export default function App() {
               <span>🛒</span><span className="hidden sm:inline">Cart</span><span>({getCartCount()})</span>
             </button>
           )}
+          
           {(!user || role === 'guest') && (
-            <button onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition"><span className="hidden sm:inline">Login / Signup</span><span className="sm:inline block">Login</span></button>
+            <button onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition"><span className="hidden sm:inline">Login / Signup</span><span className="sm:hidden block">Login</span></button>
           )}
+
           {user && role === 'customer' && (
             <button onClick={() => setShowWalletModal(true)} className="bg-[#2C523D] hover:bg-[#3A6B50] border border-[#3A6B50] text-[#F4F0E6] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-inner transition active:scale-95">
               <span>💳</span><span>₹{currentCustomer?.wallet_balance || 0}</span>
@@ -285,7 +289,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* ADMIN DASHBOARD */}
       {role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#152E20] flex justify-between items-center">
@@ -336,7 +339,6 @@ export default function App() {
                           <div className="text-[11px] text-[#B5651D] font-extrabold mt-0.5">₹{p.price} <span className="text-[#796C61] font-medium">/ {p.unit}</span></div>
                         </div>
                       </div>
-                      {/* RESTORED EDIT & DELETE BUTTONS */}
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button onClick={() => setEditingProduct(p)} className="bg-[#F0EBE1] hover:bg-[#EBE5D9] text-[#2D241E] font-bold px-2.5 py-1.5 rounded-xl text-[11px] transition">✏️ Edit</button>
                         <button onClick={() => handleDeleteProduct(p.id)} className="bg-[#8B0000]/10 hover:bg-[#8B0000]/20 text-[#8B0000] font-bold px-2.5 py-1.5 rounded-xl text-[11px] transition">🗑️</button>
@@ -370,7 +372,6 @@ export default function App() {
         </div>
       )}
 
-      {/* DELIVERY BOY DASHBOARD */}
       {role === 'delivery' && (
         <div className="max-w-md mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#B5651D] to-[#965216] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#965216] flex justify-between items-center">
@@ -412,11 +413,8 @@ export default function App() {
         </div>
       )}
 
-      {/* STOREFRONT */}
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
-          
-          {/* ✨ SMALLER AUTO-SCROLLING BANNERS ✨ */}
           <div className="relative w-full h-28 sm:h-32 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
             {banners.map((b, idx) => (
               <div
@@ -432,7 +430,6 @@ export default function App() {
                 <div className="absolute -right-2 -bottom-5 text-7xl opacity-15">{b.icon}</div>
               </div>
             ))}
-            {/* Banner Dots */}
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
               {banners.map((_, i) => (
                 <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentBanner ? 'bg-white w-4' : 'bg-white/50'}`}></div>
@@ -469,7 +466,6 @@ export default function App() {
         </main>
       )}
 
-      {/* NEW WALLET MODAL (HEADER BUTTON) */}
       {showWalletModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up">
@@ -514,7 +510,6 @@ export default function App() {
         </div>
       )}
 
-      {/* UPDATED ORDERS MODAL (BOTTOM NAV BUTTON) */}
       {showOrdersModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
@@ -572,7 +567,6 @@ export default function App() {
         </div>
       )}
 
-      {/* PRODUCT DETAILS MODAL, SUBSCRIPTION MODAL, CART MODAL, LOGIN, SCANNER etc. are kept identical */}
       {viewProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
            <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] animate-slide-up">
@@ -615,15 +609,32 @@ export default function App() {
 
       {showLoginModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9]">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <div className="flex gap-1 mb-5 bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm"><button onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'customer' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>👤 Customer</button><button onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'admin' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>🛡️ Staff/Admin</button></div>
             {loginError && <div className="mb-4 text-[10px] text-[#8B0000] bg-[#8B0000]/10 p-2.5 rounded-xl font-medium">{loginError}</div>}
             {authRoleTab === 'admin' ? (
-              <form onSubmit={handleAdminLogin} className="space-y-3.5"><input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required /><input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required /><button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">Login Securely ➔</button></form>
+              <form onSubmit={handleAdminLogin} className="space-y-3.5">
+                <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                
+                <div className="text-right mt-1">
+                  <button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#796C61] hover:text-[#2D241E] font-bold">Forgot Password?</button>
+                </div>
+
+                <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">Login Securely ➔</button>
+              </form>
             ) : (
               <form className="space-y-3.5">
                 {authView === 'signup' && (<><input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required /><input type="tel" placeholder="Mobile" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required /><textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] h-16" required /></>)}
-                <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required /><input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                
+                {authView === 'login' && (
+                  <div className="text-right mt-1">
+                    <button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#B5651D] hover:underline font-bold">Forgot Password?</button>
+                  </div>
+                )}
+
                 <button type="button" onClick={authView === 'login' ? handlePasswordLogin : handleCustomerSignup} className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">{authView === 'login' ? 'Login ➔' : 'Sign Up ➔'}</button>
                 <div className="text-center mt-4 text-[11px] text-[#796C61] font-medium">{authView === 'login' ? <button type="button" onClick={() => setAuthView('signup')} className="text-[#B5651D] font-bold">Sign Up</button> : <button type="button" onClick={() => setAuthView('login')} className="text-[#B5651D] font-bold">Login</button>}</div>
               </form>
@@ -633,7 +644,6 @@ export default function App() {
         </div>
       )}
 
-      {/* EDIT PRODUCT MODAL (Restored) */}
       {editingProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
@@ -704,7 +714,6 @@ export default function App() {
         </div>
       )}
 
-      {/* BOTTOM NAV */}
       {user && role === 'customer' && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#F8F5EE]/90 backdrop-blur-xl border border-[#EBE5D9] shadow-[0_8px_30px_rgb(0,0,0,0.1)] z-40 px-4 sm:px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl bg-[#1E3F2D] text-[#F4F0E6] shadow-md group-active:scale-95"><span className="text-lg leading-none block">🏪</span></div><span className="text-[10px] font-extrabold text-[#1E3F2D] mt-1.5">Store</span></button>
