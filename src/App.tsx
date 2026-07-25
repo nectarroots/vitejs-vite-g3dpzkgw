@@ -140,7 +140,7 @@ export default function App() {
   };
 
   // 📧 EMAIL ALERT FUNCTION (WEB3FORMS)
-  const sendEmailAlert = async (subject: string, message: string) => {
+  const sendEmailAlert = async (subject: string, message: string, customerEmail: string = 'admin@nectarroots.com') => {
     const myAccessKey = '6c022681-4948-4be2-973e-3548e836739f'; 
     try {
       await fetch('https://api.web3forms.com/submit', {
@@ -153,6 +153,7 @@ export default function App() {
           access_key: myAccessKey,
           subject: subject,
           from_name: 'Nectar Roots Store 🌿',
+          email: customerEmail,
           message: message,
         }),
       });
@@ -521,22 +522,23 @@ export default function App() {
         );
 
   return (
-    <div className="min-h-screen bg-[#f8f6f0] text-slate-800 font-sans pb-28 antialiased selection:bg-emerald-100 relative">
+    <div className="min-h-screen bg-[#F8F5EE] text-[#2D241E] font-sans pb-28 antialiased selection:bg-[#EBE5D9] relative">
+      {/* Dynamic Notifications */}
       {toast.show && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-2xl shadow-xl text-white font-medium text-xs max-w-xs transition-all ${
-            toast.type === 'error' ? 'bg-red-600' : 'bg-[#0A2E23]'
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-2xl shadow-xl text-white font-medium text-xs max-w-xs transition-all border ${
+            toast.type === 'error' ? 'bg-[#8B0000] border-[#5C0000]' : 'bg-[#1E3F2D] border-[#152E20]'
           }`}>
           {toast.msg}
         </div>
       )}
 
-      {/* HEADER SECTION */}
-      <header className="bg-[#0A2E23] text-white px-4 py-3 shadow-md sticky top-0 z-20 flex justify-between items-center backdrop-blur-md">
+      {/* HEADER SECTION (EARTHY & RICH) */}
+      <header className="bg-[#1E3F2D] text-[#F4F0E6] px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)] sticky top-0 z-20 flex justify-between items-center backdrop-blur-md border-b border-[#152E20]">
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-9 h-9 bg-gradient-to-br from-amber-300 via-emerald-400 to-emerald-700 rounded-xl flex items-center justify-center text-lg shadow-sm shrink-0">🌿</div>
+          <div className="w-10 h-10 bg-[#2C523D] border border-[#3A6B50] rounded-2xl flex items-center justify-center text-xl shadow-inner shrink-0">🌿</div>
           <div className="shrink-0">
-            <h1 className="font-bold text-base tracking-tight leading-none text-amber-100 whitespace-nowrap">Nectar Roots</h1>
-            <p className="text-[10px] text-emerald-300/80 font-normal tracking-wide uppercase leading-none mt-1 whitespace-nowrap">
+            <h1 className="font-extrabold text-base tracking-tight leading-none text-[#F4F0E6] whitespace-nowrap">Nectar Roots</h1>
+            <p className="text-[10px] text-[#B5651D] font-bold tracking-widest uppercase leading-none mt-1 whitespace-nowrap">
               {role === 'admin' ? 'Live Admin DB' : user ? `Hi, ${currentCustomer?.name?.split(' ')[0] || 'User'}` : 'Pure • Organic • Farm'}
             </p>
           </div>
@@ -544,7 +546,7 @@ export default function App() {
 
         <div className="flex items-center gap-2 shrink-0">
           {(role === 'guest' || role === 'customer') && (
-            <button onClick={() => setShowCartModal(true)} className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95">
+            <button onClick={() => setShowCartModal(true)} className="bg-[#B5651D] hover:bg-[#965216] text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-[#B5651D]/20 transition active:scale-95">
               <span>🛒</span>
               <span className="hidden sm:inline">Cart</span> 
               <span>({getCartCount()})</span>
@@ -552,20 +554,20 @@ export default function App() {
           )}
 
           {(!user || role === 'guest') && (
-            <button onClick={() => setShowLoginModal(true)} className="bg-emerald-900/80 hover:bg-emerald-800 text-amber-200 font-semibold px-3 py-1.5 rounded-xl text-xs border border-emerald-700/50 transition whitespace-nowrap">
+            <button onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-3 py-1.5 rounded-xl text-xs transition whitespace-nowrap">
               Login / Signup
             </button>
           )}
 
           {user && role === 'customer' && (
-            <button onClick={() => showToast('Wallet balances are updated automatically.')} className="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/50 text-amber-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 shadow-inner">
+            <button onClick={() => showToast('Wallet balances are updated automatically.')} className="bg-[#2C523D] hover:bg-[#3A6B50] border border-[#3A6B50] text-[#F4F0E6] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-inner transition">
               <span>💳</span>
               <span>₹{currentCustomer?.wallet_balance || 0}</span>
             </button>
           )}
 
           {user && (role === 'admin' || role === 'delivery') && (
-            <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-1.5 rounded-xl text-xs whitespace-nowrap">
+            <button onClick={handleLogout} className="bg-[#8B0000] hover:bg-[#5C0000] text-white font-bold px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition border border-[#5C0000]">
               Exit
             </button>
           )}
@@ -575,18 +577,18 @@ export default function App() {
       {/* ADMIN DASHBOARD */}
       {role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
-          <div className="bg-[#0A2E23] text-white p-4 sm:p-5 rounded-2xl shadow-md border border-emerald-800 flex justify-between items-center">
+          <div className="bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#152E20] flex justify-between items-center">
             <div>
-              <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 inline-block">Master Dashboard</span>
-              <h1 className="font-bold text-base sm:text-lg text-white">Nectar Roots Control Panel</h1>
-              <p className="text-xs text-amber-300 font-bold">LIVE DATABASE SYNCED 🟢</p>
+              <span className="bg-[#B5651D]/20 text-[#D79A5E] border border-[#B5651D]/40 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 inline-block">Master Dashboard</span>
+              <h1 className="font-extrabold text-base sm:text-lg text-white">Nectar Roots Control Panel</h1>
+              <p className="text-xs text-[#B5651D] font-bold mt-1">LIVE DATABASE SYNCED 🟢</p>
             </div>
-            <div className="text-2xl">⚙️</div>
+            <div className="text-3xl opacity-80">⚙️</div>
           </div>
 
-          <div className="bg-slate-200/80 p-1 rounded-2xl border border-slate-300/60 grid grid-cols-2 sm:grid-cols-4 gap-1">
+          <div className="bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {['customers', 'products', 'finance', 'delivery'].map((tab) => (
-              <button key={tab} onClick={() => setAdminTab(tab as any)} className={`py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 ${adminTab === tab ? 'bg-white text-[#0A2E23] font-bold shadow-sm' : 'text-slate-600 hover:text-slate-900 font-medium'}`}>
+              <button key={tab} onClick={() => setAdminTab(tab as any)} className={`py-2 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 ${adminTab === tab ? 'bg-[#1E3F2D] text-[#F4F0E6] font-bold shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1] hover:text-[#2D241E] font-semibold'}`}>
                 <span>{tab === 'customers' ? '👥' : tab === 'products' ? '📦' : tab === 'finance' ? '📊' : '🛵'}</span>
                 <span className="capitalize">{tab}</span>
               </button>
@@ -596,20 +598,20 @@ export default function App() {
           {/* ADMIN: CUSTOMERS */}
           {adminTab === 'customers' && (
             <div className="space-y-4">
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center mb-3">
-                  <h2 className="font-bold text-sm text-slate-900">👥 Live Customer Data</h2>
-                  <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-100">Total: {customers.length}</span>
+              <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EBE5D9] shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="font-bold text-sm text-[#2D241E]">👥 Live Customer Data</h2>
+                  <span className="text-xs font-bold bg-[#F0EBE1] text-[#1E3F2D] px-3 py-1 rounded-full border border-[#EBE5D9]">Total: {customers.length}</span>
                 </div>
-                {customers.length === 0 && <div className="text-xs text-center py-5 text-slate-500">No customers found.</div>}
+                {customers.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">No customers found.</div>}
                 {customers.map((c) => (
-                  <div key={c.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 mb-2 flex justify-between items-center">
+                  <div key={c.id} className="p-4 bg-[#F8F5EE] rounded-2xl border border-[#EBE5D9] mb-3 flex justify-between items-center hover:shadow-sm transition">
                     <div>
-                      <div className="font-semibold text-xs text-slate-900">{c.name} (QR: {c.qrCode || 'NR-101'})</div>
-                      <div className="text-[11px] text-slate-500">📞 {c.phone} | ✉️ {c.email}</div>
-                      <div className="text-[11px] font-bold text-emerald-800 mt-0.5">Wallet: ₹{c.wallet_balance || 0}</div>
+                      <div className="font-extrabold text-xs text-[#2D241E]">{c.name} <span className="text-[#796C61] font-medium">(QR: {c.qrCode || 'NR-101'})</span></div>
+                      <div className="text-[11px] text-[#796C61] mt-1">📞 {c.phone} | ✉️ {c.email}</div>
+                      <div className="text-[11px] font-extrabold text-[#B5651D] mt-1">Wallet: ₹{c.wallet_balance || 0}</div>
                     </div>
-                    <button onClick={() => handleRecharge(c.id)} className="bg-[#0A2E23] text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-sm">+ ₹500</button>
+                    <button onClick={() => handleRecharge(c.id)} className="bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs px-4 py-2 rounded-xl font-bold shadow-sm transition active:scale-95">+ ₹500</button>
                   </div>
                 ))}
               </div>
@@ -619,37 +621,37 @@ export default function App() {
           {/* ADMIN: PRODUCTS */}
           {adminTab === 'products' && (
             <div className="space-y-4">
-              <form onSubmit={handleAddProduct} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                <h2 className="font-bold text-xs text-slate-900">+ Publish Live Product</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input type="text" placeholder="Product Title" value={newProd.name} onChange={(e) => setNewProd({ ...newProd, name: e.target.value })} className="text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-                  <input type="number" placeholder="Price (₹)" value={newProd.price} onChange={(e) => setNewProd({ ...newProd, price: e.target.value })} className="text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-                  <select value={newProd.category} onChange={(e) => setNewProd({ ...newProd, category: e.target.value })} className="text-xs p-2.5 bg-slate-50 border rounded-xl">
+              <form onSubmit={handleAddProduct} className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EBE5D9] shadow-sm space-y-4">
+                <h2 className="font-bold text-sm text-[#2D241E]">+ Publish Live Product</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input type="text" placeholder="Product Title" value={newProd.name} onChange={(e) => setNewProd({ ...newProd, name: e.target.value })} className="text-xs p-3 bg-[#F8F5EE] border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+                  <input type="number" placeholder="Price (₹)" value={newProd.price} onChange={(e) => setNewProd({ ...newProd, price: e.target.value })} className="text-xs p-3 bg-[#F8F5EE] border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+                  <select value={newProd.category} onChange={(e) => setNewProd({ ...newProd, category: e.target.value })} className="text-xs p-3 bg-[#F8F5EE] border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]">
                     <option value="Dairy">🥛 Dairy & Milk</option>
                     <option value="Eggs">🥚 Farm Eggs</option>
                     <option value="Ghee">🏺 Vedic Ghee</option>
                     <option value="Farm">🌱 Organic Farm</option>
                   </select>
                 </div>
-                <button type="submit" className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-semibold">Save to Database</button>
+                <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3 rounded-xl font-bold shadow-md transition active:scale-95">Save to Database</button>
               </form>
 
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="font-bold text-xs text-slate-900 mb-2.5">📦 Live Database Inventory</h2>
-                {products.length === 0 && <div className="text-xs text-center py-5 text-slate-500">Database is empty. Add a product above.</div>}
-                <div className="divide-y divide-slate-100">
+              <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EBE5D9] shadow-sm">
+                <h2 className="font-bold text-sm text-[#2D241E] mb-4">📦 Live Database Inventory</h2>
+                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
+                <div className="divide-y divide-[#EBE5D9]">
                   {products.map((p) => (
-                    <div key={p.id} className="py-2.5 flex justify-between items-center gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-xl">{p.icon || '🌿'}</span>
+                    <div key={p.id} className="py-3 flex justify-between items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 bg-[#F0EBE1] rounded-xl flex items-center justify-center text-xl border border-[#EBE5D9] shrink-0">{p.icon || '🌿'}</div>
                         <div className="min-w-0">
-                          <div className="font-semibold text-xs text-slate-900 truncate">{p.name}</div>
-                          <div className="text-[11px] text-emerald-900 font-medium">₹{p.price} / {p.unit}</div>
+                          <div className="font-bold text-xs text-[#2D241E] truncate">{p.name}</div>
+                          <div className="text-[11px] text-[#B5651D] font-extrabold mt-0.5">₹{p.price} <span className="text-[#796C61] font-medium">/ {p.unit}</span></div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={() => setEditingProduct(p)} className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-2.5 py-1 rounded-lg text-xs transition">✏️ Edit</button>
-                        <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-2.5 py-1 rounded-lg text-xs transition">🗑️ Delete</button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => setEditingProduct(p)} className="bg-[#F0EBE1] hover:bg-[#EBE5D9] text-[#2D241E] font-bold px-3 py-1.5 rounded-xl text-[11px] transition">✏️ Edit</button>
+                        <button onClick={() => handleDeleteProduct(p.id)} className="bg-[#8B0000]/10 hover:bg-[#8B0000]/20 text-[#8B0000] font-bold px-3 py-1.5 rounded-xl text-[11px] transition">🗑️ Delete</button>
                       </div>
                     </div>
                   ))}
@@ -661,27 +663,27 @@ export default function App() {
           {/* ADMIN: FINANCE */}
           {adminTab === 'finance' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase">Total Sales</div>
-                  <div className="text-lg font-bold text-[#0A2E23] my-0.5">₹{totalSales}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
+                  <div className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Total Sales</div>
+                  <div className="text-xl font-extrabold text-[#2D241E] mt-1">₹{totalSales}</div>
                 </div>
-                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase">Wallet Recharges</div>
-                  <div className="text-lg font-bold text-emerald-600 my-0.5">₹{totalRecharges}</div>
+                <div className="bg-[#1E3F2D] p-4 rounded-3xl border border-[#152E20] shadow-md text-[#F4F0E6]">
+                  <div className="text-[10px] font-bold text-[#A5C0A0] uppercase tracking-wide">Wallet Recharges</div>
+                  <div className="text-xl font-extrabold text-white mt-1">₹{totalRecharges}</div>
                 </div>
               </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="font-bold text-xs text-slate-900 mb-3">🧾 Live Transaction Logs</h2>
-                {transactions.length === 0 && <div className="text-xs text-center py-5 text-slate-500">No transactions recorded yet.</div>}
-                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
+              <div className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EBE5D9] shadow-sm">
+                <h2 className="font-bold text-sm text-[#2D241E] mb-4">🧾 Live Transaction Logs</h2>
+                {transactions.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">No transactions recorded yet.</div>}
+                <div className="divide-y divide-[#EBE5D9] max-h-72 overflow-y-auto pr-2">
                   {transactions.map((t, idx) => (
-                    <div key={t.id || idx} className="py-2.5 flex justify-between items-center text-xs gap-2">
+                    <div key={t.id || idx} className="py-3 flex justify-between items-center text-xs gap-3">
                       <div>
-                        <div className="font-semibold text-slate-800">{t.item}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">Customer: {t.customer_name}</div>
+                        <div className="font-bold text-[#2D241E]">{t.item}</div>
+                        <div className="text-[10px] text-[#796C61] font-medium mt-0.5">Customer: {t.customer_name}</div>
                       </div>
-                      <div className={`font-bold ${t.item?.includes('Recharge') ? 'text-emerald-700' : 'text-red-600'}`}>
+                      <div className={`font-extrabold px-2.5 py-1 rounded-lg ${t.item?.includes('Recharge') ? 'bg-[#F0EBE1] text-[#1E3F2D]' : 'bg-[#8B0000]/10 text-[#8B0000]'}`}>
                         {t.item?.includes('Recharge') ? `+₹${t.amount}` : `-₹${t.amount}`}
                       </div>
                     </div>
@@ -693,45 +695,48 @@ export default function App() {
         </div>
       )}
 
-      {/* STOREFRONT */}
+      {/* STOREFRONT (PREMIUM FARM STYLE) */}
       {(role === 'guest' || role === 'customer') && (
-        <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-4">
-          <div className="bg-gradient-to-br from-[#0A2E23] via-[#0E3D2F] to-[#051C15] text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-emerald-800/50">
-            <h2 className="text-base sm:text-lg font-bold">Pure A2 Milk & Organic Produce</h2>
-            <p className="text-xs text-emerald-200/90 mt-1">Daily subscription & fresh farm delivery at your doorstep.</p>
+        <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
+          <div className="bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-5 rounded-3xl shadow-lg relative overflow-hidden border border-[#152E20]">
+            <div className="relative z-10">
+              <h2 className="text-lg font-extrabold leading-snug text-[#F4F0E6]">Pure A2 Milk &<br/>Organic Farm Produce</h2>
+              <p className="text-xs text-[#D79A5E] mt-1.5 font-bold tracking-wide">Straight from our soil to your soul. 🌾</p>
+            </div>
+            <div className="absolute -right-2 -bottom-6 text-8xl opacity-10">🏺</div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar px-1">
             {['All', 'Dairy', 'Eggs', 'Ghee', 'Farm'].map((cat) => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition border ${selectedCategory === cat ? 'bg-[#0A2E23] text-amber-200 border-[#0A2E23]' : 'bg-white text-slate-700 border-slate-200'}`}>
+              <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${selectedCategory === cat ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D] shadow-md' : 'bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]'}`}>
                 {cat}
               </button>
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 px-1">
             {filteredProducts.map((p) => {
               const qtyInCart = getCartQuantity(p.id);
               return (
-                <div key={p.id} className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div key={p.id} className="bg-white p-4 rounded-3xl shadow-sm border border-[#EBE5D9] flex flex-col justify-between hover:shadow-md transition-all group">
                   <div>
-                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-2xl mb-2">{p.icon || '🌿'}</div>
-                    <div className="font-semibold text-xs text-slate-800">{p.name}</div>
-                    <div className="text-sm font-bold text-[#0A2E23] mt-1">₹{p.price} <span className="text-[10px] font-normal text-slate-400">/ {p.unit}</span></div>
+                    <div className="w-12 h-12 bg-[#F8F5EE] border border-[#EBE5D9] group-hover:bg-[#F0EBE1] rounded-2xl flex items-center justify-center text-2xl mb-3 transition-colors">{p.icon || '🌿'}</div>
+                    <div className="font-bold text-xs text-[#2D241E] leading-tight">{p.name}</div>
+                    <div className="text-sm font-extrabold text-[#B5651D] mt-1.5">₹{p.price} <span className="text-[10px] font-medium text-[#796C61]">/ {p.unit}</span></div>
                   </div>
-                  <div className="mt-3 space-y-1.5">
-                    <button onClick={() => { setSelectedSubProduct(p); setShowSubscribeModal(true); }} className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold py-1.5 rounded-xl text-[11px] shadow-sm flex items-center justify-center gap-1">
-                      <span>📅 Subscribe Daily</span>
+                  <div className="mt-4 space-y-2">
+                    <button onClick={() => { setSelectedSubProduct(p); setShowSubscribeModal(true); }} className="w-full bg-[#F8F5EE] hover:bg-[#F0EBE1] text-[#1E3F2D] font-bold py-2 rounded-xl text-[11px] transition-colors border border-[#EBE5D9]">
+                      📅 Subscribe
                     </button>
                     {qtyInCart > 0 ? (
-                      <div className="flex items-center justify-between bg-emerald-50 rounded-xl p-1 border border-emerald-200">
-                        <button onClick={() => handleUpdateCartQuantity(p.id, -1)} className="w-6 h-6 bg-white rounded font-bold text-xs">-</button>
-                        <span className="text-xs font-bold text-[#0A2E23]">{qtyInCart}</span>
-                        <button onClick={() => handleUpdateCartQuantity(p.id, 1)} className="w-6 h-6 bg-[#0A2E23] text-white rounded font-bold text-xs">+</button>
+                      <div className="flex items-center justify-between bg-white rounded-xl p-1 border border-[#1E3F2D] shadow-sm">
+                        <button onClick={() => handleUpdateCartQuantity(p.id, -1)} className="w-7 h-7 bg-[#F8F5EE] hover:bg-[#F0EBE1] rounded-lg font-bold text-[#2D241E] text-sm transition">-</button>
+                        <span className="text-xs font-extrabold text-[#1E3F2D]">{qtyInCart}</span>
+                        <button onClick={() => handleUpdateCartQuantity(p.id, 1)} className="w-7 h-7 bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] rounded-lg font-bold text-sm transition">+</button>
                       </div>
                     ) : (
-                      <button onClick={() => handleAddToCart(p)} className="w-full bg-[#0A2E23] text-white font-medium py-1.5 rounded-xl text-xs">
-                        🛒 Buy Once
+                      <button onClick={() => handleAddToCart(p)} className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] font-bold py-2 rounded-xl text-xs shadow-md transition active:scale-95">
+                        🛒 Add
                       </button>
                     )}
                   </div>
@@ -744,60 +749,60 @@ export default function App() {
 
       {/* SUBSCRIPTION MODAL */}
       {showSubscribeModal && selectedSubProduct && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-xl flex flex-col max-h-[85vh]">
-            <div className="flex justify-between items-center border-b pb-3 mb-3 shrink-0">
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5"><span>🥛 Daily Subscription Plan</span></h3>
-              <button onClick={() => setShowSubscribeModal(false)} className="text-slate-400 hover:text-slate-700 font-bold text-lg">✕</button>
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh] animate-slide-up border border-[#EBE5D9]">
+            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3 mb-4 shrink-0">
+              <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🥛 Daily Subscription</span></h3>
+              <button onClick={() => setShowSubscribeModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold text-lg bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
             </div>
-            <div className="overflow-y-auto pr-1 space-y-4 pb-2">
-              <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center gap-3">
-                <span className="text-3xl">{selectedSubProduct.icon || '🌿'}</span>
+            <div className="overflow-y-auto pr-1 space-y-5 pb-2">
+              <div className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] flex items-center gap-3 shadow-sm">
+                <span className="text-3xl bg-[#F8F5EE] w-12 h-12 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{selectedSubProduct.icon || '🌿'}</span>
                 <div>
-                  <div className="font-bold text-xs text-slate-900">{selectedSubProduct.name}</div>
-                  <div className="text-xs font-bold text-[#0A2E23]">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div>
+                  <div className="font-extrabold text-xs text-[#2D241E]">{selectedSubProduct.name}</div>
+                  <div className="text-xs font-bold text-[#B5651D] mt-0.5">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div>
                 </div>
               </div>
-              <form onSubmit={handleCreateSubscription} className="space-y-4">
+              <form onSubmit={handleCreateSubscription} className="space-y-5">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Select Quantity per day:</label>
+                  <label className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide block mb-2">Quantity per day</label>
                   <div className="flex items-center gap-2">
                     {[1, 2, 3, 5].map((q) => (
-                      <button key={q} type="button" onClick={() => setSubQty(q)} className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition ${subQty === q ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                      <button key={q} type="button" onClick={() => setSubQty(q)} className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold transition-all border ${subQty === q ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D] shadow-md' : 'bg-white text-[#2D241E] border-[#EBE5D9] hover:bg-[#F0EBE1]'}`}>
                         {q}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Delivery Frequency:</label>
+                  <label className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide block mb-2">Delivery Frequency</label>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setSubFreq('Daily')} className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition ${subFreq === 'Daily' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>📅 Everyday</button>
-                    <button type="button" onClick={() => setSubFreq('Alternate Days')} className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition ${subFreq === 'Alternate Days' ? 'bg-[#0A2E23] text-white border-[#0A2E23]' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>🗓️ Alt. Days</button>
+                    <button type="button" onClick={() => setSubFreq('Daily')} className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all border ${subFreq === 'Daily' ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D] shadow-md' : 'bg-white text-[#2D241E] border-[#EBE5D9] hover:bg-[#F0EBE1]'}`}>📅 Everyday</button>
+                    <button type="button" onClick={() => setSubFreq('Alternate Days')} className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all border ${subFreq === 'Alternate Days' ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D] shadow-md' : 'bg-white text-[#2D241E] border-[#EBE5D9] hover:bg-[#F0EBE1]'}`}>🗓️ Alt. Days</button>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1.5">Payment Cut Preference:</label>
+                  <label className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide block mb-2">Payment Preference</label>
                   <div className="space-y-2">
-                    <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${subPayType === 'scan_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
-                      <input type="radio" name="payType" checked={subPayType === 'scan_deduct'} onChange={() => setSubPayType('scan_deduct')} className="mt-0.5 accent-[#0A2E23]" />
+                    <label className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${subPayType === 'scan_deduct' ? 'bg-[#F0EBE1] border-[#1E3F2D]' : 'bg-white border-[#EBE5D9] hover:bg-[#F8F5EE]'}`}>
+                      <input type="radio" name="payType" checked={subPayType === 'scan_deduct'} onChange={() => setSubPayType('scan_deduct')} className="mt-0.5 accent-[#1E3F2D] w-4 h-4" />
                       <div>
-                        <div className="text-[11px] font-bold text-slate-900">📱 Cut Money After QR Scan</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">Delivery boy scans your QR code at doorstep, then money is deducted.</div>
+                        <div className="text-xs font-bold text-[#2D241E]">📱 Cut Money After QR Scan</div>
+                        <div className="text-[10px] text-[#796C61] mt-1 leading-snug font-medium">Delivery boy scans your QR code at doorstep, then money is deducted.</div>
                       </div>
                     </label>
-                    <label className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${subPayType === 'auto_deduct' ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
-                      <input type="radio" name="payType" checked={subPayType === 'auto_deduct'} onChange={() => setSubPayType('auto_deduct')} className="mt-0.5 accent-[#0A2E23]" />
+                    <label className={`p-3.5 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${subPayType === 'auto_deduct' ? 'bg-[#F0EBE1] border-[#1E3F2D]' : 'bg-white border-[#EBE5D9] hover:bg-[#F8F5EE]'}`}>
+                      <input type="radio" name="payType" checked={subPayType === 'auto_deduct'} onChange={() => setSubPayType('auto_deduct')} className="mt-0.5 accent-[#1E3F2D] w-4 h-4" />
                       <div>
-                        <div className="text-[11px] font-bold text-slate-900">⚡ Auto-Deduct Morning</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">Money auto-deducts daily. QR code scanned just for delivery confirmation.</div>
+                        <div className="text-xs font-bold text-[#2D241E]">⚡ Auto-Deduct Morning</div>
+                        <div className="text-[10px] text-[#796C61] mt-1 leading-snug font-medium">Money auto-deducts daily. QR code scanned just for delivery confirmation.</div>
                       </div>
                     </label>
                   </div>
                 </div>
-                <div className="pt-2 sticky bottom-0 bg-white pb-1">
-                  <button type="submit" className="w-full bg-[#0A2E23] hover:bg-emerald-900 text-amber-200 font-bold py-3.5 rounded-xl text-xs shadow-md transition active:scale-95">
-                    Confirm Subscription (₹{selectedSubProduct.price * subQty} / day) ➔
+                <div className="pt-2 sticky bottom-0 bg-[#F8F5EE] pb-1">
+                  <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs shadow-lg transition active:scale-95">
+                    Confirm (₹{selectedSubProduct.price * subQty} / day) ➔
                   </button>
                 </div>
               </form>
@@ -806,160 +811,160 @@ export default function App() {
         </div>
       )}
 
-      {/* ✨ PREMIUM FLOATING BOTTOM NAVIGATION ✨ */}
+      {/* ✨ PREMIUM FLOATING BOTTOM NAVIGATION (FARM STYLE) ✨ */}
       {user && role === 'customer' && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/80 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-40 px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#F8F5EE]/90 backdrop-blur-xl border border-[#EBE5D9] shadow-[0_8px_30px_rgb(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
           
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center group relative">
-            <div className="p-2 rounded-2xl bg-gradient-to-br from-[#0A2E23] to-emerald-800 text-amber-200 shadow-md group-active:scale-95 transition-all">
+            <div className="p-2 rounded-2xl bg-[#1E3F2D] text-[#F4F0E6] shadow-md group-active:scale-95 transition-all">
               <span className="text-lg leading-none block">🏪</span>
             </div>
-            <span className="text-[10px] font-extrabold text-[#0A2E23] mt-1.5">Store</span>
+            <span className="text-[10px] font-extrabold text-[#1E3F2D] mt-1.5">Store</span>
           </button>
 
           <button onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center group relative">
-            <div className="p-2 rounded-2xl text-slate-400 group-hover:bg-emerald-50 group-hover:text-[#0A2E23] group-active:scale-95 transition-all">
+            <div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#F0EBE1] group-hover:text-[#1E3F2D] group-active:scale-95 transition-all">
               <span className="text-lg leading-none block">📦</span>
             </div>
-            <span className="text-[10px] font-bold text-slate-500 group-hover:text-[#0A2E23] mt-1.5 transition-all">Orders</span>
+            <span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#1E3F2D] mt-1.5 transition-all">Orders</span>
           </button>
 
           <button onClick={() => setShowQRModal(true)} className="flex flex-col items-center group relative">
-            <div className="p-2 rounded-2xl text-slate-400 group-hover:bg-emerald-50 group-hover:text-[#0A2E23] group-active:scale-95 transition-all">
+            <div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#F0EBE1] group-hover:text-[#1E3F2D] group-active:scale-95 transition-all">
               <span className="text-lg leading-none block">📱</span>
             </div>
-            <span className="text-[10px] font-bold text-slate-500 group-hover:text-[#0A2E23] mt-1.5 transition-all">QR Pass</span>
+            <span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#1E3F2D] mt-1.5 transition-all">QR Pass</span>
           </button>
 
           <button onClick={handleLogout} className="flex flex-col items-center group relative">
-            <div className="p-2 rounded-2xl text-slate-400 group-hover:bg-red-50 group-hover:text-red-500 group-active:scale-95 transition-all">
+            <div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#8B0000]/10 group-hover:text-[#8B0000] group-active:scale-95 transition-all">
               <span className="text-lg leading-none block">🚪</span>
             </div>
-            <span className="text-[10px] font-bold text-slate-500 group-hover:text-red-500 mt-1.5 transition-all">Logout</span>
+            <span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#8B0000] mt-1.5 transition-all">Logout</span>
           </button>
 
         </div>
       )}
-      {/* EDIT PRODUCT MODAL (FIXED) */}
+
+      {/* EDIT PRODUCT MODAL */}
       {editingProduct && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="font-bold text-sm text-slate-900">✏️ Edit Product</h3>
-              <button onClick={() => setEditingProduct(null)} className="text-slate-400 font-bold hover:text-slate-700">✕</button>
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
+            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3">
+              <h3 className="font-extrabold text-sm text-[#2D241E]">✏️ Edit Product</h3>
+              <button onClick={() => setEditingProduct(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
             </div>
-            <form onSubmit={handleUpdateProduct} className="space-y-3">
+            <form onSubmit={handleUpdateProduct} className="space-y-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Product Name</label>
-                <input type="text" value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl mt-1" required />
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Product Name</label>
+                <input type="text" value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Price (₹)</label>
-                <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl mt-1" required />
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Price (₹)</label>
+                <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Category</label>
-                <select value={editingProduct.category} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl mt-1">
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Category</label>
+                <select value={editingProduct.category} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]">
                   <option value="Dairy">🥛 Dairy & Milk</option>
                   <option value="Eggs">🥚 Farm Eggs</option>
                   <option value="Ghee">🏺 Vedic Ghee</option>
                   <option value="Farm">🌱 Organic Farm</option>
                 </select>
               </div>
-              <button type="submit" className="w-full bg-[#0A2E23] hover:bg-emerald-900 text-white text-xs py-3 rounded-xl font-bold transition">Update Product ➔</button>
+              <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold transition shadow-md mt-2">Update Product ➔</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* LOGIN / SIGNUP MODAL (FIXED WITH FORGOT PASSWORD & TOGGLES) */}
+      {/* LOGIN / SIGNUP MODAL */}
       {showLoginModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl">
-            <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl">
-              <button onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-lg ${authRoleTab === 'customer' ? 'bg-white text-emerald-900 shadow-sm' : 'text-slate-500'}`}>👤 Customer</button>
-              <button onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-lg ${authRoleTab === 'admin' ? 'bg-white text-emerald-900 shadow-sm' : 'text-slate-500'}`}>🛡️ Admin</button>
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9]">
+            <div className="flex gap-1 mb-5 bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm">
+              <button onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-xl transition-all ${authRoleTab === 'customer' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-sm' : 'text-[#796C61] hover:text-[#2D241E]'}`}>👤 Customer</button>
+              <button onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-xl transition-all ${authRoleTab === 'admin' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-sm' : 'text-[#796C61] hover:text-[#2D241E]'}`}>🛡️ Admin</button>
             </div>
             
-            {loginError && <div className="mb-3 text-[10px] text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">{loginError}</div>}
+            {loginError && <div className="mb-4 text-[10px] text-[#8B0000] bg-[#8B0000]/10 p-2.5 rounded-xl border border-[#8B0000]/20 font-medium">{loginError}</div>}
 
             {authRoleTab === 'admin' ? (
-              <form onSubmit={handleAdminLogin} className="space-y-3">
-                <input type="email" placeholder="Admin Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-                <button type="submit" className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-bold">Login Admin ➔</button>
+              <form onSubmit={handleAdminLogin} className="space-y-3.5">
+                <input type="email" placeholder="Admin Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+                <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold shadow-md transition active:scale-95">Login Admin ➔</button>
               </form>
             ) : (
-              <form className="space-y-3">
+              <form className="space-y-3.5">
                 {authView === 'signup' && (
                   <>
-                    <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-                    <input type="tel" placeholder="Mobile Number" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-                    <textarea placeholder="Delivery Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl h-14" required />
+                    <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+                    <input type="tel" placeholder="Mobile Number" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+                    <textarea placeholder="Delivery Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E] h-16" required />
                   </>
                 )}
-                <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
-                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-2.5 bg-slate-50 border rounded-xl" required />
+                <input type="email" placeholder="Email Address" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
                 
                 {authView === 'login' && (
-                  <div className="flex justify-end">
-                    <button type="button" onClick={handleForgotPassword} className="text-[10px] text-emerald-700 font-bold hover:underline">Forgot Password?</button>
+                  <div className="flex justify-end pt-1">
+                    <button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#B5651D] font-bold hover:underline">Forgot Password?</button>
                   </div>
                 )}
 
                 {authView === 'login' ? (
-                  <button type="button" onClick={handlePasswordLogin} className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-bold mt-1">Login ➔</button>
+                  <button type="button" onClick={handlePasswordLogin} className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2 shadow-md transition active:scale-95">Login ➔</button>
                 ) : (
-                  <button type="button" onClick={handleCustomerSignup} className="w-full bg-[#0A2E23] text-white text-xs py-2.5 rounded-xl font-bold mt-1">Sign Up ➔</button>
+                  <button type="button" onClick={handleCustomerSignup} className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2 shadow-md transition active:scale-95">Sign Up ➔</button>
                 )}
 
-                {/* LOGIN/SIGNUP SWITCHER BUTTON */}
-                <div className="text-center mt-4 text-[11px] text-slate-500">
+                <div className="text-center mt-4 text-[11px] text-[#796C61] font-medium">
                   {authView === 'login' ? (
-                    <>Don't have an account? <button type="button" onClick={() => setAuthView('signup')} className="text-emerald-700 font-bold ml-1 hover:underline">Sign Up</button></>
+                    <>Don't have an account? <button type="button" onClick={() => setAuthView('signup')} className="text-[#B5651D] font-bold ml-1 hover:underline">Sign Up</button></>
                   ) : (
-                    <>Already have an account? <button type="button" onClick={() => setAuthView('login')} className="text-emerald-700 font-bold ml-1 hover:underline">Login</button></>
+                    <>Already have an account? <button type="button" onClick={() => setAuthView('login')} className="text-[#B5651D] font-bold ml-1 hover:underline">Login</button></>
                   )}
                 </div>
               </form>
             )}
-            <div className="mt-4 border-t pt-3 text-center">
-               <button onClick={closeModal} className="text-[10px] text-slate-400 font-bold hover:text-slate-700">Cancel & Close</button>
+            <div className="mt-5 pt-3 text-center">
+               <button onClick={closeModal} className="text-[10px] bg-white hover:bg-[#F0EBE1] border border-[#EBE5D9] text-[#796C61] font-bold py-2 px-4 rounded-full transition">Cancel & Close</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* CART MODAL (FIXED CHECKOUT ERROR HANDLING) */}
+      {/* CART MODAL */}
       {showCartModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-sm w-full shadow-xl border border-slate-100 max-h-[85vh] flex flex-col justify-between">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border border-[#EBE5D9]">
             <div>
-              <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 mb-3">
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5"><span>🛒 Shopping Cart</span></h3>
-                <button onClick={() => setShowCartModal(false)} className="text-slate-400 font-bold hover:text-slate-700">✕</button>
+              <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9] mb-4">
+                <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🛒 Shopping Cart</span></h3>
+                <button onClick={() => setShowCartModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
               </div>
               {cart.length === 0 ? (
-                <div className="py-10 text-center space-y-3">
-                  <div className="text-5xl">🛒</div>
-                  <p className="text-sm font-semibold text-slate-700">Your cart is empty!</p>
-                  <button onClick={() => setShowCartModal(false)} className="bg-[#0A2E23] hover:bg-emerald-900 text-white font-semibold px-5 py-2.5 rounded-xl text-xs transition active:scale-95 shadow-sm">Browse Products</button>
+                <div className="py-12 text-center space-y-4">
+                  <div className="text-6xl opacity-80">🛒</div>
+                  <p className="text-sm font-bold text-[#796C61]">Your cart is empty!</p>
+                  <button onClick={() => setShowCartModal(false)} className="bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] font-bold px-6 py-2.5 rounded-xl text-xs transition">Browse Products</button>
                 </div>
               ) : (
-                <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
                   {cart.map((item) => (
-                    <div key={item.id} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-200/80">
+                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border border-[#EBE5D9] shadow-sm">
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{item.icon}</span>
+                        <span className="text-2xl bg-[#F8F5EE] w-10 h-10 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{item.icon}</span>
                         <div>
-                          <div className="font-semibold text-xs text-slate-800">{item.name}</div>
-                          <div className="text-[11px] text-emerald-900 font-medium mt-0.5">₹{item.price} / {item.unit} | <span className="font-bold text-[#0A2E23]">Total: ₹{item.price * item.quantity}</span></div>
+                          <div className="font-bold text-xs text-[#2D241E]">{item.name}</div>
+                          <div className="text-[11px] text-[#796C61] font-medium mt-0.5">₹{item.price} / {item.unit} | <span className="font-extrabold text-[#B5651D]">Total: ₹{item.price * item.quantity}</span></div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-white rounded-lg font-bold text-sm border text-slate-700">-</button>
-                        <span className="text-xs font-bold text-slate-900 w-3 text-center">{item.quantity}</span>
-                        <button onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#0A2E23] rounded-lg font-bold text-sm text-white">+</button>
+                        <button onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] hover:bg-[#F0EBE1] border border-[#EBE5D9] rounded-lg font-bold text-sm text-[#2D241E] transition">-</button>
+                        <span className="text-xs font-extrabold text-[#2D241E] w-3 text-center">{item.quantity}</span>
+                        <button onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] hover:bg-[#152E20] rounded-lg font-bold text-sm text-[#F4F0E6] transition">+</button>
                       </div>
                     </div>
                   ))}
@@ -967,12 +972,12 @@ export default function App() {
               )}
             </div>
             {cart.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 mt-4 space-y-2.5">
-                <div className="flex justify-between items-center text-xs font-bold text-slate-900">
+              <div className="pt-4 border-t border-[#EBE5D9] mt-4 space-y-3">
+                <div className="flex justify-between items-center text-xs font-bold text-[#796C61] uppercase tracking-wide">
                   <span>Total Amount</span>
-                  <span className="text-[#0A2E23] text-base">₹{getCartTotal()}</span>
+                  <span className="text-[#1E3F2D] text-lg font-extrabold">₹{getCartTotal()}</span>
                 </div>
-                <button onClick={handleCheckout} className="w-full bg-[#0A2E23] hover:bg-emerald-900 text-amber-200 font-semibold py-3 rounded-xl text-xs shadow-md transition active:scale-95 mt-1">
+                <button onClick={handleCheckout} className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs shadow-lg transition active:scale-95">
                   Proceed to Checkout ➔
                 </button>
               </div>
@@ -983,40 +988,71 @@ export default function App() {
 
       {/* QR MODAL */}
       {showQRModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-5 max-w-xs w-full text-center space-y-3 shadow-xl">
-            <h3 className="font-bold text-sm text-slate-900">Delivery Identifier QR</h3>
-            <div className="p-4 bg-emerald-50 rounded-xl inline-block border border-emerald-200">
-              <div className="text-5xl">🏁</div>
-              <div className="text-xs font-mono font-bold mt-2 text-emerald-950">{currentCustomer?.qrCode}</div>
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border border-[#EBE5D9]">
+            <h3 className="font-extrabold text-sm text-[#2D241E]">Delivery Identifier QR</h3>
+            <div className="p-5 bg-white rounded-2xl inline-block border border-[#EBE5D9] shadow-sm">
+              <div className="text-6xl">🏁</div>
+              <div className="text-xs font-mono font-extrabold mt-3 text-[#1E3F2D] tracking-widest">{currentCustomer?.qrCode}</div>
             </div>
-            <p className="text-[11px] text-slate-500">Show this QR code to delivery agent for verification.</p>
-            <button onClick={() => setShowQRModal(false)} className="w-full bg-[#0A2E23] text-white text-xs font-semibold py-2 rounded-xl">Close</button>
+            <p className="text-[11px] text-[#796C61] font-medium">Show this QR code to delivery agent for verification.</p>
+            <button onClick={() => setShowQRModal(false)} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#2D241E] text-xs font-bold py-3 rounded-xl transition mt-2 shadow-sm">Close</button>
           </div>
         </div>
       )}
 
-      {/* ORDERS MODAL */}
-      {showOrdersModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-2xl p-4 max-w-sm w-full shadow-xl space-y-3">
-            <div className="flex justify-between items-center pb-2 border-b">
-              <h3 className="font-bold text-sm text-slate-900">📦 Subscriptions & Orders</h3>
-              <button onClick={() => setShowOrdersModal(false)} className="text-slate-400 font-bold">✕</button>
+{/* ORDERS MODAL */}
+{showOrdersModal && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
+            <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
+              <h3 className="font-extrabold text-sm text-[#2D241E]">📦 My Orders & Subs</h3>
+              <button onClick={() => setShowOrdersModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
             </div>
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-              <h4 className="text-xs font-bold text-emerald-900">Active Subscriptions:</h4>
-              {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 && <p className="text-[10px] text-slate-400">No active subscriptions.</p>}
-              {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
-                <div key={idx} className="p-2.5 bg-emerald-50/50 rounded-xl border border-emerald-100 text-xs">
-                  <div className="font-bold text-slate-800">{s.product_name} ({s.quantity} qty)</div>
-                  <div className="text-[10px] text-slate-500">Mode: {s.payment_type === 'scan_deduct' ? '📱 Cut on Scan' : '⚡ Auto-Deduct'} | {s.frequency}</div>
-                </div>
-              ))}
+            
+            <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
+              
+              {/* SECTION 1: Active Subscriptions */}
+              <div>
+                <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2">Active Subscriptions</h4>
+                {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
+                  <p className="text-[11px] text-[#796C61] font-medium text-center py-2 bg-white rounded-xl border border-[#EBE5D9]">No active subscriptions.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
+                      <div key={idx} className="p-3.5 bg-white rounded-2xl border border-[#EBE5D9] text-xs shadow-sm hover:shadow-md transition">
+                        <div className="font-extrabold text-[#1E3F2D]">{s.product_name} <span className="text-[#B5651D] font-bold">({s.quantity} qty)</span></div>
+                        <div className="text-[10px] text-[#796C61] font-medium mt-1.5 flex justify-between">
+                          <span>{s.payment_type === 'scan_deduct' ? '📱 Cut on Scan' : '⚡ Auto-Deduct'}</span>
+                          <span className="font-bold text-[#2D241E]">{s.frequency}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 2: Past Cart Orders */}
+              <div className="pt-2 border-t border-[#EBE5D9]">
+                <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2">Recent Orders</h4>
+                {transactions.filter(t => t.customer_name === currentCustomer?.name && !t.item?.includes('Recharge')).length === 0 ? (
+                  <p className="text-[11px] text-[#796C61] font-medium text-center py-2 bg-white rounded-xl border border-[#EBE5D9]">No recent orders found.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {transactions.filter(t => t.customer_name === currentCustomer?.name && !t.item?.includes('Recharge')).map((t, idx) => (
+                      <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] text-xs shadow-sm flex justify-between items-center gap-3">
+                        <div>
+                          <div className="font-bold text-[#2D241E] leading-snug line-clamp-2">{t.item}</div>
+                          <div className="text-[10px] text-[#796C61] font-medium mt-0.5">Paid via Wallet 💳</div>
+                        </div>
+                        <div className="font-extrabold text-[#1E3F2D] shrink-0">₹{t.amount}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
