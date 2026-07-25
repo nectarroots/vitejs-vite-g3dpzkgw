@@ -8,6 +8,7 @@ export default function App() {
     'products' | 'customers' | 'finance' | 'delivery' | 'paused'
   >('products');
 
+  // Live States
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -16,6 +17,7 @@ export default function App() {
   const [cart, setCart] = useState<any[]>(() => JSON.parse(localStorage.getItem('nr_cart') || '[]'));
   const [selectedCategory, setSelectedCategory] = useState('All');
 
+  // Modal States
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -30,7 +32,7 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
   const [deliveryTab, setDeliveryTab] = useState<'pending' | 'history'>('pending');
-  const [currentBanner, setCurrentBanner] = useState(0);
+  const [currentBanner, setCurrentBanner] = useState(0); 
 
   const [subQty, setSubQty] = useState(1);
   const [subFreq, setSubFreq] = useState<'Daily' | 'Alternate Days'>('Daily');
@@ -47,10 +49,16 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [toast, setToast] = useState({ show: false, msg: '', type: '' });
 
+  // Vacation Mode States
+  const [showVacationForm, setShowVacationForm] = useState<string | null>(null);
+  const [vacationStart, setVacationStart] = useState('');
+  const [vacationEnd, setVacationEnd] = useState('');
+
   const currentCustomer = user ? customers.find((c) => c.email === user.email || c.id === user.id) : null;
 
   const [newProd, setNewProd] = useState({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
 
+  // SUPABASE & AUTO-SCROLL BANNER EFFECT
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
@@ -84,7 +92,7 @@ export default function App() {
       const { data: prodData } = await supabase.from('products').select('*');
       if (prodData) setProducts(prodData.map((p) => ({ ...p, id: String(p.id) })));
       const { data: custData } = await supabase.from('customers').select('*');
-      if (custData) setCustomers(custData.map((c) => ({ ...c, id: String(c.id), walletBalance: Number(c.wallet_balance ?? 0) })));
+      if (custData) setCustomers(custData.map((c) => ({ ...c, id: String(c.id), walletBalance: Number(c.wallet_balance ?? 0), pending_bottles: Number(c.pending_bottles ?? 0) })));
       const { data: txData } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
       if (txData) setTransactions(txData);
       const { data: subData } = await supabase.from('subscriptions').select('*');
@@ -111,33 +119,28 @@ export default function App() {
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Secure Dashboard Accessed 👑'); closeModal(); }
   };
-
   const handleCustomerSignup = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     if (!signupName || !signupPhone || !signupAddress || !emailInput || !passwordInput) return setLoginError('Fill all fields.');
     const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message);
     else if (data.user) {
-      const newCustomer = { id: data.user.id, name: signupName, email: emailInput, phone: signupPhone, address: signupAddress, wallet_balance: 0, qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}` };
+      const newCustomer = { id: data.user.id, name: signupName, email: emailInput, phone: signupPhone, address: signupAddress, wallet_balance: 0, pending_bottles: 0, qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}` };
       await supabase.from('customers').insert([newCustomer]);
       fetchLiveDatabaseData(); showToast('Account Created! 🎉'); closeModal();
     }
   };
-
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Logged in successfully! 🔓'); closeModal(); }
   };
-
   const handleForgotPassword = async () => {
     if (!emailInput) return setLoginError('Enter email to reset.');
     const { error } = await supabase.auth.resetPasswordForEmail(emailInput);
     if (error) setLoginError(error.message); else { showToast('Reset link sent! 📧'); setLoginError(''); }
   };
-
   const handleLogout = async () => { await supabase.auth.signOut(); setRole('guest'); showToast('Securely logged out 👋'); };
-
   const closeModal = () => {
     setShowLoginModal(false); setAuthView('login'); setAuthRoleTab('customer');
     setEmailInput(''); setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setLoginError('');
@@ -155,15 +158,38 @@ export default function App() {
     } catch (err: any) { alert("Error: " + err.message); }
   };
 
-  const handleTogglePause = async (subId: string, currentStatus: string, productName: string) => {
-    const newStatus = currentStatus === 'Active' ? 'Paused' : 'Active';
+  // Naya Vacation Mode Date Range Function
+  const handleConfirmPause = async (subId: string, productName: string) => {
+    if(!vacationStart || !vacationEnd) return showToast('Please select both dates', 'error');
     try {
-      const { error } = await supabase.from('subscriptions').update({ status: newStatus }).eq('id', subId);
+      const { error } = await supabase.from('subscriptions').update({ 
+        status: 'Paused', 
+        pause_start: vacationStart, 
+        pause_end: vacationEnd 
+      }).eq('id', subId);
       if (error) throw error;
-      fetchLiveDatabaseData();
-      showToast(newStatus === 'Paused' ? `Delivery Paused for ${productName} 🌴` : `Delivery Resumed for ${productName} 🚀`);
-      if (newStatus === 'Paused') sendEmailAlert(`⏸️ Delivery Paused by ${currentCustomer?.name}`, `${currentCustomer?.name} has paused their subscription for ${productName}. Please check Admin Portal.`);
+      fetchLiveDatabaseData(); setShowVacationForm(null);
+      showToast(`Vacation set for ${productName} 🌴`);
+      sendEmailAlert(`⏸️ Delivery Paused by ${currentCustomer?.name}`, `${currentCustomer?.name} paused ${productName} from ${vacationStart} to ${vacationEnd}.`);
     } catch (err: any) { alert('Pause Error: ' + err.message); }
+  };
+
+  const handleResume = async (subId: string, productName: string) => {
+    try {
+      const { error } = await supabase.from('subscriptions').update({ 
+        status: 'Active', pause_start: null, pause_end: null 
+      }).eq('id', subId);
+      if (error) throw error;
+      fetchLiveDatabaseData(); showToast(`Delivery Resumed for ${productName} 🚀`);
+    } catch (err: any) { alert('Resume Error: ' + err.message); }
+  };
+
+  const handleUpdateBottles = async (custId: string, current: number, delta: number) => {
+    const newVal = Math.max(0, current + delta);
+    try {
+      await supabase.from('customers').update({ pending_bottles: newVal }).eq('id', custId);
+      fetchLiveDatabaseData();
+    } catch (err: any) { alert("Bottle Update Error: " + err.message); }
   };
 
   const handleMarkDelivered = async (delivery: any) => {
@@ -259,6 +285,7 @@ export default function App() {
         </div>
       )}
 
+      {/* HEADER */}
       <header className="bg-[#1E3F2D] text-[#F4F0E6] px-3 sm:px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)] sticky top-0 z-20 flex justify-between items-center backdrop-blur-md border-b border-[#152E20] gap-2">
         <div className="flex items-center gap-2 min-w-0"> 
           <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#2C523D] border border-[#3A6B50] rounded-2xl flex items-center justify-center text-lg sm:text-xl shadow-inner shrink-0">🌿</div>
@@ -281,14 +308,28 @@ export default function App() {
           )}
 
           {user && role === 'customer' && (
-            <button onClick={() => setShowWalletModal(true)} className="bg-[#2C523D] hover:bg-[#3A6B50] border border-[#3A6B50] text-[#F4F0E6] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-inner transition active:scale-95">
-              <span>💳</span><span>₹{currentCustomer?.wallet_balance || 0}</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              {/* Low Balance Warning Indicator */}
+              {(currentCustomer?.wallet_balance || 0) < 200 && (
+                <span className="text-[10px] bg-[#8B0000] text-white px-2 py-1 rounded-lg font-extrabold animate-pulse hidden sm:inline-block border border-[#5C0000]">Low Bal</span>
+              )}
+              <button onClick={() => setShowWalletModal(true)} className={`bg-[#2C523D] hover:bg-[#3A6B50] border ${((currentCustomer?.wallet_balance || 0) < 200) ? 'border-red-500 shadow-[0_0_8px_red]' : 'border-[#3A6B50]'} text-[#F4F0E6] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 transition active:scale-95`}>
+                <span>💳</span><span>₹{currentCustomer?.wallet_balance || 0}</span>
+              </button>
+            </div>
           )}
           {user && (role === 'admin' || role === 'delivery') && (<button onClick={handleLogout} className="bg-[#8B0000] hover:bg-[#5C0000] text-white font-bold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition border border-[#5C0000]">Exit</button>)}
         </div>
       </header>
 
+      {/* Midnight Cut-off Banner */}
+      {(role === 'guest' || role === 'customer') && (
+        <div className="bg-[#F0EBE1] border-b border-[#EBE5D9] text-center py-2 px-3 shadow-sm">
+          <p className="text-[10px] sm:text-[11px] font-extrabold text-[#1E3F2D] flex justify-center items-center gap-1.5"><span className="text-sm">🌙</span> Update orders/subs by 11:00 PM for tomorrow morning delivery.</p>
+        </div>
+      )}
+
+      {/* ADMIN DASHBOARD */}
       {role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#152E20] flex justify-between items-center">
@@ -307,7 +348,23 @@ export default function App() {
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-4">👥 Live Customer Data</h2>
               {customers.map((c) => (
-                <div key={c.id} className="p-4 bg-[#F8F5EE] rounded-2xl border border-[#EBE5D9] mb-3 flex justify-between items-center"><div className="w-2/3"><div className="font-extrabold text-xs text-[#2D241E] truncate">{c.name}</div><div className="text-[11px] text-[#796C61] mt-1">📞 {c.phone}</div><div className="text-[11px] font-extrabold text-[#B5651D] mt-1">Wallet: ₹{c.wallet_balance || 0}</div></div><button onClick={() => handleRecharge(c.id)} className="bg-[#1E3F2D] text-[#F4F0E6] text-xs px-3 py-2 rounded-xl font-bold">+ ₹500</button></div>
+                <div key={c.id} className="p-4 bg-[#F8F5EE] rounded-2xl border border-[#EBE5D9] mb-3 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                  <div>
+                    <div className="font-extrabold text-xs text-[#2D241E] truncate">{c.name}</div>
+                    <div className="text-[11px] text-[#796C61] mt-1">📞 {c.phone}</div>
+                    <div className="flex gap-4 items-center mt-1.5">
+                      <div className="text-[11px] font-extrabold text-[#B5651D]">Wallet: ₹{c.wallet_balance || 0}</div>
+                      {/* BOTTLE TRACKING ADMIN VIEW */}
+                      <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-[#EBE5D9]">
+                        <span className="text-[10px] font-bold text-[#796C61]">🍾 Pending:</span>
+                        <button onClick={() => handleUpdateBottles(c.id, c.pending_bottles, -1)} className="text-[10px] font-bold px-1.5 bg-[#F8F5EE] rounded">-</button>
+                        <span className="text-[11px] font-extrabold text-[#1E3F2D]">{c.pending_bottles || 0}</span>
+                        <button onClick={() => handleUpdateBottles(c.id, c.pending_bottles, 1)} className="text-[10px] font-bold px-1.5 bg-[#F8F5EE] rounded">+</button>
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => handleRecharge(c.id)} className="bg-[#1E3F2D] text-[#F4F0E6] text-xs px-4 py-2.5 rounded-xl font-bold w-full sm:w-auto shadow-sm active:scale-95">+ ₹500 Wallet</button>
+                </div>
               ))}
             </div>
           )}
@@ -359,6 +416,11 @@ export default function App() {
                   <div>
                     <div className="font-extrabold text-xs text-[#8B0000]">{s.customer_name}</div>
                     <div className="text-[11px] text-[#796C61] mt-1">{s.product_name} ({s.quantity} qty)</div>
+                    {(s.pause_start && s.pause_end) && (
+                      <div className="text-[9px] font-bold bg-white text-[#8B0000] px-2 py-0.5 rounded border border-[#8B0000]/20 mt-1.5 inline-block">
+                        Till: {s.pause_end}
+                      </div>
+                    )}
                   </div>
                   <span className="bg-[#8B0000] text-white text-[10px] font-bold px-2 py-1 rounded-lg">PAUSED</span>
                 </div>
@@ -389,7 +451,14 @@ export default function App() {
                 const cust = customers.find(c => String(c.id) === String(sub.customer_id));
                 return (
                   <div key={idx} className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm group">
-                    <div className="font-extrabold text-sm text-[#2D241E]">{cust?.name || sub.customer_name}</div>
+                    <div className="flex justify-between items-start">
+                      <div className="font-extrabold text-sm text-[#2D241E]">{cust?.name || sub.customer_name}</div>
+                      {/* Show Bottles to Collect for Delivery Boy */}
+                      {Number(cust?.pending_bottles) > 0 && (
+                        <div className="bg-[#B5651D]/10 border border-[#B5651D]/20 text-[#B5651D] px-2 py-0.5 rounded-lg text-[9px] font-extrabold">🍾 Collect: {cust.pending_bottles} Bottles</div>
+                      )}
+                    </div>
+                    
                     <div className="text-[10px] font-medium text-[#796C61] mt-0.5 mb-2 leading-snug">📍 {cust?.address || 'Address not available'}</div>
                     <div className="flex justify-between items-center bg-[#F8F5EE] p-2.5 rounded-xl mb-3 border border-[#EBE5D9]"><div className="text-xs font-bold text-[#1E3F2D]"><span>🥛</span> {sub.product_name}</div><div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">{sub.quantity} qty</div></div>
                     <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Scan & Deliver</button></div>
@@ -473,6 +542,13 @@ export default function App() {
               <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>💳 Wallet & Passbook</span></h3>
               <button onClick={() => setShowWalletModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
             </div>
+            
+            {/* Low Balance Alert Banner in Passbook */}
+            {(currentCustomer?.wallet_balance || 0) < 200 && (
+              <div className="bg-[#8B0000]/10 border border-[#8B0000]/20 text-[#8B0000] text-[10px] p-2.5 rounded-xl font-bold flex gap-2 items-center">
+                <span className="text-lg">⚠️</span> Your balance is running low. Please recharge to avoid daily delivery cancellations.
+              </div>
+            )}
 
             <div className="bg-[#1E3F2D] text-white p-5 rounded-2xl shadow-inner text-center border border-[#152E20] relative overflow-hidden">
               <div className="relative z-10">
@@ -483,7 +559,15 @@ export default function App() {
               <div className="absolute -right-4 -bottom-4 text-6xl opacity-10">💳</div>
             </div>
 
-            <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+            {/* Bottle Return Notice for Customer */}
+            {(currentCustomer?.pending_bottles || 0) > 0 && (
+              <div className="bg-white p-3 rounded-2xl border border-[#EBE5D9] flex justify-between items-center shadow-sm">
+                <div className="text-[11px] font-extrabold text-[#2D241E] flex items-center gap-2"><span>🍾</span> Empty Bottles to Return</div>
+                <div className="text-sm font-extrabold text-[#B5651D] bg-[#F8F5EE] px-3 py-1 rounded-xl border border-[#EBE5D9]">{currentCustomer?.pending_bottles}</div>
+              </div>
+            )}
+
+            <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
               <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2 sticky top-0 bg-[#F8F5EE] py-1">Transaction History</h4>
               {transactions.filter(t => t.customer_name === currentCustomer?.name).length === 0 ? (
                 <p className="text-[11px] text-[#796C61] font-medium text-center py-4 bg-white rounded-xl border border-[#EBE5D9]">No transactions yet.</p>
@@ -524,17 +608,41 @@ export default function App() {
                 {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
                    <p className="text-[11px] text-[#796C61] font-medium text-center py-2 bg-white rounded-xl border border-[#EBE5D9]">No subscriptions yet.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
                       <div key={idx} className={`p-3.5 rounded-2xl border shadow-sm ${s.status === 'Paused' ? 'bg-[#8B0000]/5 border-[#8B0000]/20' : 'bg-white border-[#EBE5D9]'}`}>
                         <div className="flex justify-between items-start">
                           <div>
                             <div className={`font-extrabold ${s.status === 'Paused' ? 'text-[#8B0000]' : 'text-[#1E3F2D]'}`}>{s.product_name} <span className="text-[#B5651D]">({s.quantity})</span></div>
                             <div className="text-[10px] text-[#796C61] mt-1">{s.frequency} | {s.payment_type === 'scan_deduct' ? 'Scan to Pay' : 'Auto-Pay'}</div>
+                            {(s.status === 'Paused' && s.pause_end) && (
+                              <div className="text-[9px] font-bold bg-white text-[#8B0000] px-2 py-0.5 rounded border border-[#8B0000]/20 mt-1.5 inline-block">
+                                Resumes on: {s.pause_end}
+                              </div>
+                            )}
                           </div>
-                          <button onClick={() => handleTogglePause(s.id, s.status, s.product_name)} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all ${s.status === 'Paused' ? 'bg-[#1E3F2D] text-white border-[#1E3F2D]' : 'bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]'}`}>
-                            {s.status === 'Paused' ? '▶ Resume' : '⏸ Pause'}
-                          </button>
+                          
+                          {s.status === 'Paused' ? (
+                            <button onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-[#1E3F2D] text-white border-[#1E3F2D] shadow-sm">
+                              ▶ Resume
+                            </button>
+                          ) : (
+                            showVacationForm === s.id ? (
+                              <div className="flex flex-col gap-1.5 items-end">
+                                <input type="date" value={vacationStart} onChange={(e)=>setVacationStart(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
+                                <span className="text-[8px] font-bold text-[#796C61]">TO</span>
+                                <input type="date" value={vacationEnd} onChange={(e)=>setVacationEnd(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
+                                <div className="flex gap-1 mt-1">
+                                  <button onClick={() => setShowVacationForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">Cancel</button>
+                                  <button onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[9px] bg-[#8B0000] text-white px-2 py-1 rounded font-bold">Confirm</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button onClick={() => setShowVacationForm(s.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]">
+                                ⏸ Pause
+                              </button>
+                            )
+                          )}
                         </div>
                       </div>
                     ))}
@@ -698,6 +806,13 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] text-center">
             <h3 className="font-extrabold text-sm text-[#2D241E] mb-2">Scan Customer QR</h3><p className="text-[10px] text-[#796C61] font-bold mb-4">For: {selectedDelivery.cust?.name}</p>
             <div className="w-48 h-48 mx-auto bg-black rounded-2xl border-4 border-[#1E3F2D] border-dashed flex flex-col items-center justify-center mb-4 relative overflow-hidden"><div className="w-full h-1 bg-red-500/60 absolute top-1/2 animate-pulse shadow-[0_0_10px_red]"></div></div>
+            
+            {Number(selectedDelivery.cust?.pending_bottles) > 0 && (
+              <div className="bg-white p-2 rounded-xl border border-[#EBE5D9] mb-4 text-[10px] font-extrabold text-[#B5651D] shadow-sm">
+                🍾 Do not forget to collect {selectedDelivery.cust.pending_bottles} Empty Bottles!
+              </div>
+            )}
+
             <button onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold">Simulate Scan ✅</button>
             <button onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#796C61] py-3 rounded-xl text-xs font-bold mt-2">Cancel</button>
           </div>
