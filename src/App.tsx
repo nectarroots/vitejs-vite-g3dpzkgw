@@ -32,6 +32,8 @@ export default function App() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showOrdersModal, setShowOrdersModal] = useState(false); 
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+  const [showScannerModal, setShowScannerModal] = useState(false); // Delivery Scanner
+  const [selectedDelivery, setSelectedDelivery] = useState<any>(null); // Delivery Selection
   const [selectedSubProduct, setSelectedSubProduct] = useState<any>(null);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
@@ -305,6 +307,54 @@ export default function App() {
     }
   };
 
+  // DELIVERY BOY LOGIC (QR SCAN & DEDUCT)
+  const handleMarkDelivered = async (delivery: any) => {
+    if (!delivery || !delivery.cust) return;
+    
+    const cust = delivery.cust;
+    const amountToDeduct = Number(delivery.price);
+
+    try {
+      if (delivery.payment_type === 'scan_deduct') {
+        if (Number(cust.wallet_balance) < amountToDeduct) {
+          showToast(`Delivery Failed: Low balance! (₹${cust.wallet_balance})`, 'error');
+          setShowScannerModal(false);
+          return;
+        }
+        
+        const newBal = Number(cust.wallet_balance) - amountToDeduct;
+        
+        // Update Wallet
+        const { error: walletErr } = await supabase.from('customers').update({ wallet_balance: newBal }).eq('id', cust.id);
+        if (walletErr) throw walletErr;
+
+        // Record Transaction
+        const { error: txErr } = await supabase.from('transactions').insert([{
+          customer_name: cust.name,
+          item: `Sub Delivery: ${delivery.product_name} (x${delivery.quantity})`,
+          amount: amountToDeduct
+        }]);
+        if (txErr) throw txErr;
+
+      } else {
+        // Auto-deduct just logs delivery (zero deduction at door)
+        const { error: txErr } = await supabase.from('transactions').insert([{
+          customer_name: cust.name,
+          item: `Sub Delivery (Auto-paid): ${delivery.product_name} (x${delivery.quantity})`,
+          amount: 0
+        }]);
+        if (txErr) throw txErr;
+      }
+
+      fetchLiveDatabaseData();
+      setShowScannerModal(false);
+      showToast(`Delivered successfully to ${cust.name}! ✅`);
+      
+    } catch (err: any) {
+      alert("Delivery Error: " + err.message);
+    }
+  };
+
   // LIVE PRODUCT MANAGEMENT
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -532,21 +582,21 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER SECTION (EARTHY & RICH) */}
-      <header className="bg-[#1E3F2D] text-[#F4F0E6] px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)] sticky top-0 z-20 flex justify-between items-center backdrop-blur-md border-b border-[#152E20]">
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-10 h-10 bg-[#2C523D] border border-[#3A6B50] rounded-2xl flex items-center justify-center text-xl shadow-inner shrink-0">🌿</div>
-          <div className="shrink-0">
-            <h1 className="font-extrabold text-base tracking-tight leading-none text-[#F4F0E6] whitespace-nowrap">Nectar Roots</h1>
-            <p className="text-[10px] text-[#B5651D] font-bold tracking-widest uppercase leading-none mt-1 whitespace-nowrap">
-              {role === 'admin' ? 'Live Admin DB' : user ? `Hi, ${currentCustomer?.name?.split(' ')[0] || 'User'}` : 'Pure • Organic • Farm'}
+      {/* HEADER SECTION (AUTO-ADJUSTED FOR MOBILE) */}
+      <header className="bg-[#1E3F2D] text-[#F4F0E6] px-3 sm:px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)] sticky top-0 z-20 flex justify-between items-center backdrop-blur-md border-b border-[#152E20] gap-2">
+        <div className="flex items-center gap-2 min-w-0"> 
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#2C523D] border border-[#3A6B50] rounded-2xl flex items-center justify-center text-lg sm:text-xl shadow-inner shrink-0">🌿</div>
+          <div className="min-w-0">
+            <h1 className="font-extrabold text-sm sm:text-base tracking-tight leading-none text-[#F4F0E6] truncate">Nectar Roots</h1>
+            <p className="text-[9px] sm:text-[10px] text-[#B5651D] font-bold tracking-widest uppercase leading-none mt-1 truncate">
+              {role === 'admin' ? 'Live Admin DB' : role === 'delivery' ? 'Agent Panel' : user ? `Hi, ${currentCustomer?.name?.split(' ')[0] || 'User'}` : 'Pure • Organic • Farm'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {(role === 'guest' || role === 'customer') && (
-            <button onClick={() => setShowCartModal(true)} className="bg-[#B5651D] hover:bg-[#965216] text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-[#B5651D]/20 transition active:scale-95">
+            <button onClick={() => setShowCartModal(true)} className="bg-[#B5651D] hover:bg-[#965216] text-white font-bold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs flex items-center gap-1 shadow-md shadow-[#B5651D]/20 transition active:scale-95">
               <span>🛒</span>
               <span className="hidden sm:inline">Cart</span> 
               <span>({getCartCount()})</span>
@@ -554,20 +604,21 @@ export default function App() {
           )}
 
           {(!user || role === 'guest') && (
-            <button onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-3 py-1.5 rounded-xl text-xs transition whitespace-nowrap">
-              Login / Signup
+            <button onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition">
+              <span className="hidden sm:inline">Login / Signup</span>
+              <span className="sm:inline block">Login</span>
             </button>
           )}
 
           {user && role === 'customer' && (
-            <button onClick={() => showToast('Wallet balances are updated automatically.')} className="bg-[#2C523D] hover:bg-[#3A6B50] border border-[#3A6B50] text-[#F4F0E6] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-inner transition">
+            <button onClick={() => showToast('Wallet balances are updated automatically.')} className="bg-[#2C523D] hover:bg-[#3A6B50] border border-[#3A6B50] text-[#F4F0E6] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-inner transition">
               <span>💳</span>
               <span>₹{currentCustomer?.wallet_balance || 0}</span>
             </button>
           )}
 
           {user && (role === 'admin' || role === 'delivery') && (
-            <button onClick={handleLogout} className="bg-[#8B0000] hover:bg-[#5C0000] text-white font-bold px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition border border-[#5C0000]">
+            <button onClick={handleLogout} className="bg-[#8B0000] hover:bg-[#5C0000] text-white font-bold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition border border-[#5C0000]">
               Exit
             </button>
           )}
@@ -695,6 +746,56 @@ export default function App() {
         </div>
       )}
 
+      {/* DELIVERY BOY DASHBOARD */}
+      {role === 'delivery' && (
+        <div className="max-w-md mx-auto p-3.5 sm:p-5 space-y-4">
+          <div className="bg-gradient-to-br from-[#B5651D] to-[#965216] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#965216] flex justify-between items-center">
+            <div>
+              <span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 inline-block">Agent Dashboard</span>
+              <h1 className="font-extrabold text-base sm:text-lg text-white">Today's Deliveries</h1>
+            </div>
+            <div className="text-3xl opacity-80">🛵</div>
+          </div>
+
+          <div className="space-y-3">
+            {subscriptions.filter(s => s.status === 'Active').length === 0 && (
+              <div className="text-center p-8 bg-white rounded-3xl border border-[#EBE5D9] shadow-sm">
+                <div className="text-4xl mb-2 opacity-80">🎉</div>
+                <div className="text-xs text-[#796C61] font-bold">No pending deliveries for today!</div>
+              </div>
+            )}
+            
+            {subscriptions.filter(s => s.status === 'Active').map((sub, idx) => {
+              const cust = customers.find(c => String(c.id) === String(sub.customer_id));
+              return (
+                <div key={idx} className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm relative overflow-hidden group">
+                  <div className="font-extrabold text-sm text-[#2D241E]">{cust?.name || sub.customer_name}</div>
+                  <div className="text-[10px] font-medium text-[#796C61] mt-0.5 mb-2 leading-snug">📍 {cust?.address || 'Address not available'}</div>
+                  
+                  <div className="flex justify-between items-center bg-[#F8F5EE] p-2.5 rounded-xl mb-3 border border-[#EBE5D9]">
+                    <div className="text-xs font-bold text-[#1E3F2D] flex items-center gap-1.5">
+                      <span>🥛</span> {sub.product_name}
+                    </div>
+                    <div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">
+                      {sub.quantity} {sub.unit || 'qty'}
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="text-[10px] font-bold text-[#796C61]">
+                      {sub.payment_type === 'scan_deduct' ? '📱 Collect via QR Scan' : '⚡ Auto-Paid (Wallet)'}
+                    </div>
+                    <button onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] hover:bg-[#152E20] text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm active:scale-95">
+                      Scan & Deliver
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* STOREFRONT (PREMIUM FARM STYLE) */}
       {(role === 'guest' || role === 'customer') && (
         <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
@@ -811,9 +912,9 @@ export default function App() {
         </div>
       )}
 
-      {/* ✨ PREMIUM FLOATING BOTTOM NAVIGATION (FARM STYLE) ✨ */}
+      {/* ✨ PREMIUM FLOATING BOTTOM NAVIGATION (ADJUSTED FOR MOBILE) ✨ */}
       {user && role === 'customer' && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#F8F5EE]/90 backdrop-blur-xl border border-[#EBE5D9] shadow-[0_8px_30px_rgb(0,0,0,0.1)] z-40 px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#F8F5EE]/90 backdrop-blur-xl border border-[#EBE5D9] shadow-[0_8px_30px_rgb(0,0,0,0.1)] z-40 px-4 sm:px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
           
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center group relative">
             <div className="p-2 rounded-2xl bg-[#1E3F2D] text-[#F4F0E6] shadow-md group-active:scale-95 transition-all">
@@ -893,7 +994,8 @@ export default function App() {
               <form onSubmit={handleAdminLogin} className="space-y-3.5">
                 <input type="email" placeholder="Admin Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
                 <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
-                <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold shadow-md transition active:scale-95">Login Admin ➔</button>
+                <p className="text-[10px] text-center text-[#796C61] mt-2 font-medium">Use admin@nectarroots.com / delivery@nectarroots.com</p>
+                <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold shadow-md transition active:scale-95">Login Securely ➔</button>
               </form>
             ) : (
               <form className="space-y-3.5">
@@ -986,7 +1088,7 @@ export default function App() {
         </div>
       )}
 
-      {/* QR MODAL */}
+      {/* QR MODAL (CUSTOMER SHOWS THIS) */}
       {showQRModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border border-[#EBE5D9]">
@@ -1000,8 +1102,43 @@ export default function App() {
           </div>
         </div>
       )}
-{/* ORDERS MODAL */}
-{showOrdersModal && (
+
+      {/* DELIVERY SCANNER MODAL (AGENT USES THIS) */}
+      {showScannerModal && selectedDelivery && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] text-center">
+            <h3 className="font-extrabold text-sm text-[#2D241E] mb-2">Scan Customer QR</h3>
+            <p className="text-[10px] text-[#796C61] font-bold mb-4">Scanning QR for: {selectedDelivery.cust?.name}</p>
+
+            <div className="w-48 h-48 mx-auto bg-black rounded-2xl border-4 border-[#1E3F2D] border-dashed flex flex-col items-center justify-center mb-4 relative overflow-hidden shadow-inner">
+               <div className="w-full h-1 bg-red-500/60 absolute top-1/2 animate-pulse shadow-[0_0_10px_red]"></div>
+               <span className="text-white text-xs opacity-60 font-mono tracking-widest">CAMERA ACTIVE</span>
+            </div>
+
+            <div className="bg-white p-3 rounded-xl border border-[#EBE5D9] mb-4 text-left">
+              <div className="text-[10px] text-[#796C61] font-bold uppercase tracking-wide">Deduction Details</div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-xs font-bold text-[#2D241E]">Wallet Balance:</span>
+                <span className="text-xs font-extrabold text-[#1E3F2D]">₹{selectedDelivery.cust?.wallet_balance}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-xs font-bold text-[#2D241E]">To Deduct:</span>
+                <span className="text-xs font-extrabold text-[#8B0000]">-₹{selectedDelivery.price}</span>
+              </div>
+            </div>
+
+            <button onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-white py-3.5 rounded-xl text-xs font-extrabold shadow-md transition active:scale-95">
+              Simulate Successful Scan ✅
+            </button>
+            <button onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#796C61] hover:text-[#2D241E] py-3 rounded-xl text-xs font-bold transition mt-2">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ORDERS MODAL (FIXED) */}
+      {showOrdersModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
