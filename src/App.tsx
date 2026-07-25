@@ -1000,7 +1000,6 @@ export default function App() {
           </div>
         </div>
       )}
-
 {/* ORDERS MODAL */}
 {showOrdersModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
@@ -1056,3 +1055,6 @@ export default function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
