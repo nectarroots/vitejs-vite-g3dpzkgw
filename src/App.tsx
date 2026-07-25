@@ -22,7 +22,7 @@ export default function App() {
   const [showCartModal, setShowCartModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showOrdersModal, setShowOrdersModal] = useState(false); 
-  const [showWalletModal, setShowWalletModal] = useState(false); // NEW WALLET MODAL
+  const [showWalletModal, setShowWalletModal] = useState(false); 
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false); 
   const [viewProduct, setViewProduct] = useState<any>(null); 
@@ -32,6 +32,7 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
   const [deliveryTab, setDeliveryTab] = useState<'pending' | 'history'>('pending');
+  const [currentBanner, setCurrentBanner] = useState(0); // For Auto-Scrolling Banner
 
   const [subQty, setSubQty] = useState(1);
   const [subFreq, setSubFreq] = useState<'Daily' | 'Alternate Days'>('Daily');
@@ -52,6 +53,7 @@ export default function App() {
 
   const [newProd, setNewProd] = useState({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
 
+  // SUPABASE & AUTO-SCROLL BANNER EFFECT
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
@@ -61,7 +63,16 @@ export default function App() {
       else { setUser(null); setRole('guest'); }
     });
     fetchLiveDatabaseData();
-    return () => authListener.subscription.unsubscribe();
+
+    // Auto-Scroll Banner Timer (Changes every 4 seconds)
+    const bannerTimer = setInterval(() => {
+      setCurrentBanner((prev) => (prev + 1) % 2); 
+    }, 4000);
+
+    return () => {
+      authListener.subscription.unsubscribe();
+      clearInterval(bannerTimer);
+    };
   }, []);
 
   const assignRoleByEmail = (email: string | undefined) => {
@@ -76,13 +87,10 @@ export default function App() {
     try {
       const { data: prodData } = await supabase.from('products').select('*');
       if (prodData) setProducts(prodData.map((p) => ({ ...p, id: String(p.id) })));
-
       const { data: custData } = await supabase.from('customers').select('*');
       if (custData) setCustomers(custData.map((c) => ({ ...c, id: String(c.id), walletBalance: Number(c.wallet_balance ?? 0) })));
-
       const { data: txData } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
       if (txData) setTransactions(txData);
-
       const { data: subData } = await supabase.from('subscriptions').select('*');
       if (subData) setSubscriptions(subData);
     } catch (err) { console.error('Live Sync Error:', err); }
@@ -98,21 +106,15 @@ export default function App() {
   const sendEmailAlert = async (subject: string, message: string, customerEmail: string = 'admin@nectarroots.com') => {
     const myAccessKey = '6c022681-4948-4be2-973e-3548e836739f'; 
     try {
-      await fetch('https://api.web3forms.com/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ access_key: myAccessKey, subject, from_name: 'Nectar Roots', email: customerEmail, message }),
-      });
+      await fetch('https://api.web3forms.com/submit', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ access_key: myAccessKey, subject, from_name: 'Nectar Roots', email: customerEmail, message }) });
     } catch (error) { console.error('Email Error:', error); }
   };
 
-  // Auth Functions
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Secure Dashboard Accessed 👑'); closeModal(); }
   };
-
   const handleCustomerSignup = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     if (!signupName || !signupPhone || !signupAddress || !emailInput || !passwordInput) return setLoginError('Fill all fields.');
@@ -124,27 +126,22 @@ export default function App() {
       fetchLiveDatabaseData(); showToast('Account Created! 🎉'); closeModal();
     }
   };
-
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Logged in successfully! 🔓'); closeModal(); }
   };
-
   const handleForgotPassword = async () => {
     if (!emailInput) return setLoginError('Enter email to reset.');
     const { error } = await supabase.auth.resetPasswordForEmail(emailInput);
     if (error) setLoginError(error.message); else { showToast('Reset link sent! 📧'); setLoginError(''); }
   };
-
   const handleLogout = async () => { await supabase.auth.signOut(); setRole('guest'); showToast('Securely logged out 👋'); };
-
   const closeModal = () => {
     setShowLoginModal(false); setAuthView('login'); setAuthRoleTab('customer');
     setEmailInput(''); setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setLoginError('');
   };
 
-  // Subscription Logic
   const handleCreateSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || role === 'guest') { setShowSubscribeModal(false); setShowLoginModal(true); return showToast('Please login!', 'error'); }
@@ -168,7 +165,6 @@ export default function App() {
     } catch (err: any) { alert('Pause Error: ' + err.message); }
   };
 
-  // Delivery Logic
   const handleMarkDelivered = async (delivery: any) => {
     if (!delivery || !delivery.cust) return;
     const cust = delivery.cust;
@@ -185,7 +181,6 @@ export default function App() {
     } catch (err: any) { alert("Delivery Error: " + err.message); }
   };
 
-  // Admin Products
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProd.name || !newProd.price) return;
@@ -202,7 +197,6 @@ export default function App() {
     await supabase.from('products').delete().eq('id', id); setProducts(products.filter((p) => String(p.id) !== String(id))); showToast('Product deleted!');
   };
 
-  // Cart
   const handleAddToCart = (product: any) => {
     const existingIndex = cart.findIndex((item) => String(item.id) === String(product.id));
     if (existingIndex > -1) { const updatedCart = [...cart]; updatedCart[existingIndex].quantity += 1; setCart(updatedCart); } 
@@ -240,13 +234,18 @@ export default function App() {
     } catch (e: any) { alert('Recharge failed: ' + e.message); }
   };
 
-  // Calculations
   const agentTransactions = transactions.filter(t => t.item?.includes(`[Agent: ${user?.email}]`));
   const agentTotalCollected = agentTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   const totalRecharges = transactions.filter((t) => t.item?.includes('Recharge')).reduce((sum, t) => sum + (t.amount || 0), 0);
   const totalSales = totalRevenue - totalRecharges;
   const filteredProducts = selectedCategory === 'All' ? products : products.filter((p) => (p.category || '').toLowerCase() === selectedCategory.toLowerCase());
+
+  // Carousel Banner Data
+  const banners = [
+    { title: "Pure A2 Milk & Farm Produce", sub: "Straight from soil to your soul. 🌾", bg: "from-[#1E3F2D] to-[#2C523D]", icon: "🏺" },
+    { title: "Recharge Wallet & Subscribe", sub: "100% Contactless Daily Service. 🛵", bg: "from-[#B5651D] to-[#965216]", icon: "💳" }
+  ];
 
   return (
     <div className="min-h-screen bg-[#F8F5EE] text-[#2D241E] font-sans pb-28 antialiased selection:bg-[#EBE5D9] relative">
@@ -277,8 +276,6 @@ export default function App() {
           {(!user || role === 'guest') && (
             <button onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition"><span className="hidden sm:inline">Login / Signup</span><span className="sm:inline block">Login</span></button>
           )}
-          
-          {/* UPDATED WALLET BUTTON */}
           {user && role === 'customer' && (
             <button onClick={() => setShowWalletModal(true)} className="bg-[#2C523D] hover:bg-[#3A6B50] border border-[#3A6B50] text-[#F4F0E6] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-inner transition active:scale-95">
               <span>💳</span><span>₹{currentCustomer?.wallet_balance || 0}</span>
@@ -325,10 +322,28 @@ export default function App() {
                 </div>
                 <button type="submit" className="w-full bg-[#1E3F2D] text-white text-xs py-3 rounded-xl font-bold">Save to Database</button>
               </form>
+              
               <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
-                {products.map((p) => (
-                  <div key={p.id} className="py-3 flex justify-between items-center border-b border-[#EBE5D9] last:border-0"><div className="font-bold text-xs">{p.name} <span className="text-[#B5651D]">₹{p.price}</span></div><button onClick={() => handleDeleteProduct(p.id)} className="text-[#8B0000] text-[11px] font-bold">Delete</button></div>
-                ))}
+                <h2 className="font-bold text-sm text-[#2D241E] mb-4">📦 Live Database Inventory</h2>
+                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
+                <div className="divide-y divide-[#EBE5D9]">
+                  {products.map((p) => (
+                    <div key={p.id} className="py-3 flex justify-between items-center gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 bg-[#F0EBE1] rounded-xl flex items-center justify-center text-xl border border-[#EBE5D9] shrink-0">{p.icon || '🌿'}</div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs text-[#2D241E] truncate">{p.name}</div>
+                          <div className="text-[11px] text-[#B5651D] font-extrabold mt-0.5">₹{p.price} <span className="text-[#796C61] font-medium">/ {p.unit}</span></div>
+                        </div>
+                      </div>
+                      {/* RESTORED EDIT & DELETE BUTTONS */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => setEditingProduct(p)} className="bg-[#F0EBE1] hover:bg-[#EBE5D9] text-[#2D241E] font-bold px-2.5 py-1.5 rounded-xl text-[11px] transition">✏️ Edit</button>
+                        <button onClick={() => handleDeleteProduct(p.id)} className="bg-[#8B0000]/10 hover:bg-[#8B0000]/20 text-[#8B0000] font-bold px-2.5 py-1.5 rounded-xl text-[11px] transition">🗑️</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -401,12 +416,27 @@ export default function App() {
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
           
-          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
-            <div className="min-w-[90%] sm:min-w-[320px] bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-5 rounded-3xl shadow-lg relative overflow-hidden border border-[#152E20] shrink-0 snap-center">
-              <div className="relative z-10"><h2 className="text-lg font-extrabold leading-snug">Pure A2 Milk &<br/>Organic Farm Produce</h2><p className="text-xs text-[#D79A5E] mt-1.5 font-bold tracking-wide">Straight from soil to your soul. 🌾</p></div><div className="absolute -right-2 -bottom-6 text-8xl opacity-10">🏺</div>
-            </div>
-            <div className="min-w-[90%] sm:min-w-[320px] bg-gradient-to-br from-[#B5651D] to-[#965216] text-[#F4F0E6] p-5 rounded-3xl shadow-lg relative overflow-hidden border border-[#965216] shrink-0 snap-center">
-              <div className="relative z-10"><h2 className="text-lg font-extrabold leading-snug">Recharge Wallet &<br/>Get Seamless Delivery</h2><p className="text-xs text-[#F0EBE1] mt-1.5 font-bold tracking-wide">100% Contactless Daily Service. 🛵</p></div><div className="absolute -right-2 -bottom-6 text-8xl opacity-10">💳</div>
+          {/* ✨ SMALLER AUTO-SCROLLING BANNERS ✨ */}
+          <div className="relative w-full h-28 sm:h-32 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
+            {banners.map((b, idx) => (
+              <div
+                key={idx}
+                className={`absolute inset-0 w-full h-full p-4 transition-opacity duration-700 ease-in-out bg-gradient-to-br ${b.bg} text-[#F4F0E6] flex flex-col justify-center ${
+                  idx === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                }`}
+              >
+                <div className="relative z-10">
+                  <h2 className="text-sm sm:text-base font-extrabold leading-tight">{b.title}</h2>
+                  <p className="text-[10px] sm:text-[11px] text-white/90 mt-1 font-bold tracking-wide">{b.sub}</p>
+                </div>
+                <div className="absolute -right-2 -bottom-5 text-7xl opacity-15">{b.icon}</div>
+              </div>
+            ))}
+            {/* Banner Dots */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+              {banners.map((_, i) => (
+                <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentBanner ? 'bg-white w-4' : 'bg-white/50'}`}></div>
+              ))}
             </div>
           </div>
 
@@ -542,7 +572,7 @@ export default function App() {
         </div>
       )}
 
-      {/* PRODUCT DETAILS MODAL */}
+      {/* PRODUCT DETAILS MODAL, SUBSCRIPTION MODAL, CART MODAL, LOGIN, SCANNER etc. are kept identical */}
       {viewProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
            <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] animate-slide-up">
@@ -566,7 +596,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SUBSCRIPTION MODAL */}
       {showSubscribeModal && selectedSubProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh] animate-slide-up border border-[#EBE5D9]">
@@ -584,7 +613,6 @@ export default function App() {
         </div>
       )}
 
-      {/* LOGIN MODAL */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9]">
@@ -605,7 +633,38 @@ export default function App() {
         </div>
       )}
 
-      {/* CART MODAL */}
+      {/* EDIT PRODUCT MODAL (Restored) */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
+            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3">
+              <h3 className="font-extrabold text-sm text-[#2D241E]">✏️ Edit Product</h3>
+              <button onClick={() => setEditingProduct(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
+            </div>
+            <form onSubmit={handleUpdateProduct} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Product Name</label>
+                <input type="text" value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Price (₹)</label>
+                <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Category</label>
+                <select value={editingProduct.category} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]">
+                  <option value="Dairy">🥛 Dairy & Milk</option>
+                  <option value="Eggs">🥚 Farm Eggs</option>
+                  <option value="Ghee">🏺 Vedic Ghee</option>
+                  <option value="Farm">🌱 Organic Farm</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold transition shadow-md mt-2">Update Product ➔</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showCartModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border border-[#EBE5D9]">
@@ -624,7 +683,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SCANNER MODAL & QR MODAL */}
       {showScannerModal && selectedDelivery && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] text-center">
