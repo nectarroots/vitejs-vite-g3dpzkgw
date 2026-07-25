@@ -8,7 +8,6 @@ export default function App() {
     'products' | 'customers' | 'finance' | 'delivery' | 'paused'
   >('products');
 
-  // Live States
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -17,7 +16,6 @@ export default function App() {
   const [cart, setCart] = useState<any[]>(() => JSON.parse(localStorage.getItem('nr_cart') || '[]'));
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Modal States
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -49,7 +47,6 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [toast, setToast] = useState({ show: false, msg: '', type: '' });
 
-  // Vacation Mode States
   const [showVacationForm, setShowVacationForm] = useState<string | null>(null);
   const [vacationStart, setVacationStart] = useState('');
   const [vacationEnd, setVacationEnd] = useState('');
@@ -58,7 +55,6 @@ export default function App() {
 
   const [newProd, setNewProd] = useState({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
 
-  // SUPABASE & AUTO-SCROLL BANNER EFFECT
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
@@ -119,6 +115,7 @@ export default function App() {
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Secure Dashboard Accessed 👑'); closeModal(); }
   };
+
   const handleCustomerSignup = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     if (!signupName || !signupPhone || !signupAddress || !emailInput || !passwordInput) return setLoginError('Fill all fields.');
@@ -130,17 +127,21 @@ export default function App() {
       fetchLiveDatabaseData(); showToast('Account Created! 🎉'); closeModal();
     }
   };
+
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Logged in successfully! 🔓'); closeModal(); }
   };
+
   const handleForgotPassword = async () => {
     if (!emailInput) return setLoginError('Enter email to reset.');
     const { error } = await supabase.auth.resetPasswordForEmail(emailInput);
     if (error) setLoginError(error.message); else { showToast('Reset link sent! 📧'); setLoginError(''); }
   };
+
   const handleLogout = async () => { await supabase.auth.signOut(); setRole('guest'); showToast('Securely logged out 👋'); };
+
   const closeModal = () => {
     setShowLoginModal(false); setAuthView('login'); setAuthRoleTab('customer');
     setEmailInput(''); setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setLoginError('');
@@ -158,7 +159,6 @@ export default function App() {
     } catch (err: any) { alert("Error: " + err.message); }
   };
 
-  // Naya Vacation Mode Date Range Function
   const handleConfirmPause = async (subId: string, productName: string) => {
     if(!vacationStart || !vacationEnd) return showToast('Please select both dates', 'error');
     try {
@@ -211,8 +211,37 @@ export default function App() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProd.name || !newProd.price) return;
-    const { data } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag }]).select();
+    const { data, error } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag }]).select();
+    if (error) return showToast(error.message, 'error');
     if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
+  };
+
+  const handleSeedProducts = async () => {
+    const premiumCatalog = [
+      { name: 'Fresh Malai Paneer', price: 90, original_price: 110, unit: '200g', category: 'Dairy', icon: '🧀', tag: 'Fresh' },
+      { name: 'Farm Fresh Dahi', price: 60, original_price: 75, unit: '500g', category: 'Dairy', icon: '🥣', tag: 'Probiotic' },
+      { name: 'Masala Chaach', price: 45, original_price: 55, unit: '1 Liter', category: 'Dairy', icon: '🥛', tag: 'Cooling' },
+      { name: 'White Butter (Unsalted)', price: 140, original_price: 160, unit: '250g', category: 'Dairy', icon: '🧈', tag: 'Pure' },
+      { name: 'Fresh Khoya / Mawa', price: 110, original_price: 130, unit: '250g', category: 'Dairy', icon: '🍘', tag: 'Sweets' },
+      { name: 'Fresh Cream / Malai', price: 80, original_price: 95, unit: '200g', category: 'Dairy', icon: '🍦', tag: 'Rich' },
+      { name: 'Pure Goat Milk', price: 150, original_price: 170, unit: '1 Liter', category: 'Dairy', icon: '🐐', tag: 'Healthy' },
+      { name: 'Desi Free-Range Eggs', price: 110, original_price: 130, unit: '6 Pack', category: 'Eggs', icon: '🥚', tag: 'Protein' }
+    ];
+    
+    const existingNames = products.map(p => p.name.toLowerCase());
+    const toInsert = premiumCatalog.filter(p => !existingNames.includes(p.name.toLowerCase()));
+    
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from('products').insert(toInsert);
+      if (error) {
+        showToast(error.message, 'error');
+      } else {
+        fetchLiveDatabaseData();
+        showToast(`${toInsert.length} Premium Products Added! 🚀`);
+      }
+    } else {
+      showToast('Catalog already up to date! ✅');
+    }
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
@@ -277,15 +306,14 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F5EE] text-[#2D241E] font-sans pb-28 antialiased selection:bg-[#EBE5D9] relative">
+    <div className="min-h-screen bg-[#F8F5EE] text-[#2D241E] font-sans pb-28 antialiased selection:bg-[#EBE5D9] relative overflow-x-hidden">
       
       {toast.show && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-2xl shadow-xl text-white font-medium text-xs max-w-xs transition-all border ${toast.type === 'error' ? 'bg-[#8B0000] border-[#5C0000]' : 'bg-[#1E3F2D] border-[#152E20]'}`}>
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-xs px-4 py-3 rounded-2xl shadow-2xl text-white font-bold text-xs text-center border transition-all ${toast.type === 'error' ? 'bg-[#8B0000] border-[#5C0000]' : 'bg-[#1E3F2D] border-[#152E20]'}`}>
           {toast.msg}
         </div>
       )}
 
-      {/* HEADER */}
       <header className="bg-[#1E3F2D] text-[#F4F0E6] px-3 sm:px-4 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)] sticky top-0 z-20 flex justify-between items-center backdrop-blur-md border-b border-[#152E20] gap-2">
         <div className="flex items-center gap-2 min-w-0"> 
           <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#2C523D] border border-[#3A6B50] rounded-2xl flex items-center justify-center text-lg sm:text-xl shadow-inner shrink-0">🌿</div>
@@ -309,7 +337,6 @@ export default function App() {
 
           {user && role === 'customer' && (
             <div className="flex items-center gap-1.5">
-              {/* Low Balance Warning Indicator */}
               {(currentCustomer?.wallet_balance || 0) < 200 && (
                 <span className="text-[10px] bg-[#8B0000] text-white px-2 py-1 rounded-lg font-extrabold animate-pulse hidden sm:inline-block border border-[#5C0000]">Low Bal</span>
               )}
@@ -322,14 +349,12 @@ export default function App() {
         </div>
       </header>
 
-      {/* Midnight Cut-off Banner */}
       {(role === 'guest' || role === 'customer') && (
         <div className="bg-[#F0EBE1] border-b border-[#EBE5D9] text-center py-2 px-3 shadow-sm">
           <p className="text-[10px] sm:text-[11px] font-extrabold text-[#1E3F2D] flex justify-center items-center gap-1.5"><span className="text-sm">🌙</span> Update orders/subs by 11:00 PM for tomorrow morning delivery.</p>
         </div>
       )}
 
-      {/* ADMIN DASHBOARD */}
       {role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#152E20] flex justify-between items-center">
@@ -354,7 +379,6 @@ export default function App() {
                     <div className="text-[11px] text-[#796C61] mt-1">📞 {c.phone}</div>
                     <div className="flex gap-4 items-center mt-1.5">
                       <div className="text-[11px] font-extrabold text-[#B5651D]">Wallet: ₹{c.wallet_balance || 0}</div>
-                      {/* BOTTLE TRACKING ADMIN VIEW */}
                       <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-[#EBE5D9]">
                         <span className="text-[10px] font-bold text-[#796C61]">🍾 Pending:</span>
                         <button onClick={() => handleUpdateBottles(c.id, c.pending_bottles, -1)} className="text-[10px] font-bold px-1.5 bg-[#F8F5EE] rounded">-</button>
@@ -384,7 +408,10 @@ export default function App() {
               </form>
               
               <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
-                <h2 className="font-bold text-sm text-[#2D241E] mb-4">📦 Live Database Inventory</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="font-bold text-sm text-[#2D241E]">📦 Live Database Inventory</h2>
+                  <button onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Premium Catalog</button>
+                </div>
                 {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
                 <div className="divide-y divide-[#EBE5D9]">
                   {products.map((p) => (
@@ -453,7 +480,6 @@ export default function App() {
                   <div key={idx} className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm group">
                     <div className="flex justify-between items-start">
                       <div className="font-extrabold text-sm text-[#2D241E]">{cust?.name || sub.customer_name}</div>
-                      {/* Show Bottles to Collect for Delivery Boy */}
                       {Number(cust?.pending_bottles) > 0 && (
                         <div className="bg-[#B5651D]/10 border border-[#B5651D]/20 text-[#B5651D] px-2 py-0.5 rounded-lg text-[9px] font-extrabold">🍾 Collect: {cust.pending_bottles} Bottles</div>
                       )}
@@ -537,13 +563,12 @@ export default function App() {
 
       {showWalletModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
               <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>💳 Wallet & Passbook</span></h3>
               <button onClick={() => setShowWalletModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
             </div>
             
-            {/* Low Balance Alert Banner in Passbook */}
             {(currentCustomer?.wallet_balance || 0) < 200 && (
               <div className="bg-[#8B0000]/10 border border-[#8B0000]/20 text-[#8B0000] text-[10px] p-2.5 rounded-xl font-bold flex gap-2 items-center">
                 <span className="text-lg">⚠️</span> Your balance is running low. Please recharge to avoid daily delivery cancellations.
@@ -559,7 +584,6 @@ export default function App() {
               <div className="absolute -right-4 -bottom-4 text-6xl opacity-10">💳</div>
             </div>
 
-            {/* Bottle Return Notice for Customer */}
             {(currentCustomer?.pending_bottles || 0) > 0 && (
               <div className="bg-white p-3 rounded-2xl border border-[#EBE5D9] flex justify-between items-center shadow-sm">
                 <div className="text-[11px] font-extrabold text-[#2D241E] flex items-center gap-2"><span>🍾</span> Empty Bottles to Return</div>
@@ -596,13 +620,13 @@ export default function App() {
 
       {showOrdersModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
               <h3 className="font-extrabold text-sm text-[#2D241E]">📦 My Orders & Subs</h3>
               <button onClick={() => setShowOrdersModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
             </div>
             
-            <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-1">
+            <div className="space-y-5">
               <div>
                 <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2">My Subscriptions</h4>
                 {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
@@ -677,7 +701,7 @@ export default function App() {
 
       {viewProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] animate-slide-up">
+           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
               <div className="flex justify-between items-start mb-4">
                  <div className="w-16 h-16 bg-white border border-[#EBE5D9] rounded-2xl flex items-center justify-center text-4xl shadow-sm">{viewProduct.icon}</div>
                  <button onClick={() => setViewProduct(null)} className="bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center font-bold text-[#796C61]">✕</button>
@@ -754,7 +778,7 @@ export default function App() {
 
       {editingProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9]">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3">
               <h3 className="font-extrabold text-sm text-[#2D241E]">✏️ Edit Product</h3>
               <button onClick={() => setEditingProduct(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
@@ -803,7 +827,7 @@ export default function App() {
 
       {showScannerModal && selectedDelivery && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] text-center">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] text-center max-h-[95vh] overflow-y-auto">
             <h3 className="font-extrabold text-sm text-[#2D241E] mb-2">Scan Customer QR</h3><p className="text-[10px] text-[#796C61] font-bold mb-4">For: {selectedDelivery.cust?.name}</p>
             <div className="w-48 h-48 mx-auto bg-black rounded-2xl border-4 border-[#1E3F2D] border-dashed flex flex-col items-center justify-center mb-4 relative overflow-hidden"><div className="w-full h-1 bg-red-500/60 absolute top-1/2 animate-pulse shadow-[0_0_10px_red]"></div></div>
             
@@ -821,7 +845,7 @@ export default function App() {
 
       {showQRModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border border-[#EBE5D9]">
+          <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <h3 className="font-extrabold text-sm text-[#2D241E]">Delivery Identifier QR</h3>
             <div className="p-5 bg-white rounded-2xl inline-block border border-[#EBE5D9] shadow-sm"><div className="text-6xl">🏁</div><div className="text-xs font-mono font-extrabold mt-3 text-[#1E3F2D] tracking-widest">{currentCustomer?.qrCode}</div></div>
             <button onClick={() => setShowQRModal(false)} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#2D241E] text-xs font-bold py-3 rounded-xl mt-2">Close</button>
