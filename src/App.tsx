@@ -74,17 +74,10 @@ export default function App() {
   const [agentLocation, setAgentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [sortedDeliveryMode, setSortedDeliveryMode] = useState(false);
 
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
-
   const currentCustomer = user ? customers.find((c) => c.email === user.email || c.id === user.id) : null;
   const [newProd, setNewProd] = useState({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
 
   useEffect(() => {
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    });
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
     });
@@ -287,20 +280,74 @@ export default function App() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProd.name || !newProd.price) return;
-    const { data, error } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag, is_active: true }]).select();
-    if (error) return showToast(error.message, 'error');
-    if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
+    try {
+      const { data, error } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag, is_active: true }]).select();
+      if (error) throw error;
+      if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
+    } catch (err: any) {
+      alert("Error adding product: " + err.message);
+    }
   };
 
   const handleToggleProductStock = async (p: any) => {
     const newStatus = !p.is_active;
-    try { await supabase.from('products').update({ is_active: newStatus }).eq('id', p.id); fetchLiveDatabaseData(); showToast(newStatus ? 'Product is Back in Stock!' : 'Product marked Out of Stock!'); } catch (err: any) { alert(err.message); }
+    try { 
+      await supabase.from('products').update({ is_active: newStatus }).eq('id', p.id); 
+      fetchLiveDatabaseData(); 
+      showToast(newStatus ? 'Product is Back in Stock!' : 'Product marked Out of Stock!'); 
+    } catch (err: any) { alert(err.message); }
   };
 
+  // ✅ FIX: Product Edit Now Fully Stable and Converts Price to Number
   const handleUpdateProduct = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!editingProduct) return;
-    await supabase.from('products').update({ name: editingProduct.name, price: editingProduct.price, category: editingProduct.category }).eq('id', editingProduct.id);
-    setProducts(products.map((p) => String(p.id) === String(editingProduct.id) ? editingProduct : p)); setEditingProduct(null); showToast('Product updated!');
+    e.preventDefault(); 
+    if (!editingProduct) return;
+    try {
+      const { error } = await supabase.from('products').update({ 
+        name: editingProduct.name, 
+        price: Number(editingProduct.price), // Strict number conversion for DB
+        category: editingProduct.category 
+      }).eq('id', editingProduct.id);
+      
+      if (error) throw error;
+      
+      fetchLiveDatabaseData(); // Forces full UI refresh from server
+      setEditingProduct(null); 
+      showToast('Product updated successfully!');
+    } catch (err: any) {
+      alert("Error updating product: " + err.message);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!window.confirm('Delete this product permanently?')) return;
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+      fetchLiveDatabaseData();
+      showToast('Product deleted!');
+    } catch (err: any) {
+      alert("Delete Error: " + err.message);
+    }
+  };
+
+  const handleSeedProducts = async () => {
+    const premiumCatalog = [
+      { name: 'Fresh Malai Paneer', price: 90, original_price: 110, unit: '200g', category: 'Dairy', icon: '🧀', tag: 'Fresh', is_active: true },
+      { name: 'Farm Fresh Dahi', price: 60, original_price: 75, unit: '500g', category: 'Dairy', icon: '🥣', tag: 'Probiotic', is_active: true },
+      { name: 'Masala Chaach', price: 45, original_price: 55, unit: '1 Liter', category: 'Dairy', icon: '🥛', tag: 'Cooling', is_active: true },
+      { name: 'White Butter (Unsalted)', price: 140, original_price: 160, unit: '250g', category: 'Dairy', icon: '🧈', tag: 'Pure', is_active: true },
+      { name: 'Fresh Khoya / Mawa', price: 110, original_price: 130, unit: '250g', category: 'Dairy', icon: '🍘', tag: 'Sweets', is_active: true },
+      { name: 'Fresh Cream / Malai', price: 80, original_price: 95, unit: '200g', category: 'Dairy', icon: '🍦', tag: 'Rich', is_active: true },
+      { name: 'Pure Goat Milk', price: 150, original_price: 170, unit: '1 Liter', category: 'Dairy', icon: '🐐', tag: 'Healthy', is_active: true },
+      { name: 'Desi Free-Range Eggs', price: 110, original_price: 130, unit: '6 Pack', category: 'Eggs', icon: '🥚', tag: 'Protein', is_active: true }
+    ];
+    const existingNames = products.map(p => p.name.toLowerCase());
+    const toInsert = premiumCatalog.filter(p => !existingNames.includes(p.name.toLowerCase()));
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from('products').insert(toInsert);
+      if (error) { showToast(error.message, 'error'); } else { fetchLiveDatabaseData(); showToast(`${toInsert.length} Premium Products Added! 🚀`); }
+    } else { showToast('Catalog already up to date! ✅'); }
   };
 
   const handleAddToCart = (product: any) => {
@@ -444,13 +491,6 @@ export default function App() {
       {toast.show && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-xs px-4 py-3 rounded-2xl shadow-2xl text-white font-bold text-xs text-center border transition-all ${toast.type === 'error' ? 'bg-[#8B0000] border-[#5C0000]' : 'bg-[#1E3F2D] border-[#152E20]'}`}>
           {toast.msg}
-        </div>
-      )}
-
-      {installPrompt && (
-        <div className="bg-[#B5651D] text-white text-[10px] p-2 flex justify-between items-center px-4 font-bold sticky top-0 z-30">
-          <span>📲 Install Nectar Roots App for faster access!</span>
-          <button type="button" onClick={() => installPrompt.prompt()} className="bg-white text-[#B5651D] px-2 py-1 rounded shadow-sm">Install</button>
         </div>
       )}
 
@@ -637,7 +677,11 @@ export default function App() {
               </form>
               
               <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
-                <h2 className="font-bold text-sm text-[#2D241E] mb-4">📦 Live Database Inventory</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="font-bold text-sm text-[#2D241E]">📦 Live Database Inventory</h2>
+                  <button type="button" onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Premium Catalog</button>
+                </div>
+                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
                 <div className="divide-y divide-[#EBE5D9]">
                   {products.map((p) => (
                     <div key={p.id} className="py-3 flex justify-between items-center gap-2">
@@ -651,6 +695,7 @@ export default function App() {
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button type="button" onClick={() => handleToggleProductStock(p)} className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition border ${p.is_active ? 'bg-white text-[#8B0000] border-[#8B0000]/20' : 'bg-[#1E3F2D] text-white border-[#1E3F2D]'}`}>{p.is_active ? '🚫 Hide' : '✅ Show'}</button>
                         <button type="button" onClick={() => setEditingProduct(p)} className="bg-[#F0EBE1] text-[#2D241E] font-bold px-2.5 py-1.5 rounded-xl text-[10px] transition">✏️ Edit</button>
+                        <button type="button" onClick={() => handleDeleteProduct(p.id)} className="bg-[#8B0000]/10 text-[#8B0000] font-bold px-2.5 py-1.5 rounded-xl text-[10px] transition">🗑️</button>
                       </div>
                     </div>
                   ))}
@@ -776,7 +821,7 @@ export default function App() {
                       <div className="text-xs font-bold text-[#1E3F2D]"><span>🥛</span> {sub.product_name}</div>
                       <div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">{todayQty} qty</div>
                     </div>
-                    <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button type="button" onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Deliver</button></div>
+                    <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button type="button" onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Scan & Deliver</button></div>
                   </div>
                 );
               })}
