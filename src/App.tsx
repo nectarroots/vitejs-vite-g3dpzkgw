@@ -389,7 +389,7 @@ export default function App() {
       setAppliedDiscount(0); 
       setPromoInput(''); 
       setShowCartModal(false); 
-      setOrderSuccess(true); // ✅ SHOW SUCCESS MODAL
+      setOrderSuccess(true);
     } catch (e: any) { alert('Checkout failed: ' + e.message); }
   };
 
@@ -474,6 +474,60 @@ export default function App() {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
   };
 
+  // 🗺️ GOOGLE MAPS AUTO-ROUTING FUNCTION
+  const openGoogleMapsRoute = () => {
+    if (!agentLocation) return showToast('Please Sort by Nearest first to get your location!', 'error');
+    
+    const validDeliveries = displaySubscriptions.filter(s => {
+       const cust = customers.find(c => c.id === s.customer_id);
+       return cust && cust.lat && cust.lng;
+    });
+
+    if (validDeliveries.length === 0) return showToast('No customers with location data found.', 'error');
+
+    const waypoints = validDeliveries.slice(0, 10).map(s => {
+       const cust = customers.find(c => c.id === s.customer_id);
+       return `${cust?.lat},${cust?.lng}`;
+    });
+
+    const destination = waypoints.pop(); 
+    const waypointsStr = waypoints.join('|');
+    
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${agentLocation.lat},${agentLocation.lng}`;
+    if (waypoints.length > 0) url += `&waypoints=${waypointsStr}`;
+    if (destination) url += `&destination=${destination}`;
+
+    window.open(url, '_blank');
+  };
+
+  // 🔥 STREAK CALCULATOR
+  const calculateStreak = () => {
+    if (!currentCustomer) return 0;
+    const custTx = transactions.filter(t => t.customer_name === currentCustomer.name && t.item?.includes('Delivery'));
+    if (custTx.length === 0) return 0;
+
+    const dates = [...new Set(custTx.map(t => new Date(t.created_at).toISOString().split('T')[0]))].sort((a, b) => b.localeCompare(a));
+    if (dates.length === 0) return 0;
+
+    let streak = 1;
+    const today = new Date().toISOString().split('T')[0];
+    const yesterdayObj = new Date(); yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+    const yesterday = yesterdayObj.toISOString().split('T')[0];
+
+    if (dates[0] !== today && dates[0] !== yesterday) return 0; // Streak broken
+
+    let currentDate = new Date(dates[0]);
+    for (let i = 1; i < dates.length; i++) {
+      const prevDate = new Date(dates[i]);
+      const diffTime = Math.abs(currentDate.getTime() - prevDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) { streak++; currentDate = prevDate; } 
+      else { break; }
+    }
+    return streak;
+  };
+
   let displaySubscriptions = subscriptions.filter(s => s.status === 'Active');
   if (sortedDeliveryMode && agentLocation) {
     displaySubscriptions = displaySubscriptions.sort((a, b) => {
@@ -504,9 +558,8 @@ export default function App() {
         </div>
       )}
 
-      {/* WhatsApp Floating Button */}
       {(role === 'customer' || role === 'guest') && (
-         <a href="https://wa.me/919050800689?text=Hi Nectar Roots," target="_blank" rel="noopener noreferrer" className="fixed bottom-24 right-4 bg-[#25D366] text-white w-14 h-14 rounded-full shadow-lg z-30 flex items-center justify-center text-3xl hover:scale-105 transition-transform">
+         <a href="https://wa.me/919999999999?text=Hi Nectar Roots," target="_blank" rel="noopener noreferrer" className="fixed bottom-24 right-4 bg-[#25D366] text-white w-14 h-14 rounded-full shadow-lg z-30 flex items-center justify-center text-3xl hover:scale-105 transition-transform">
            <span className="mb-0.5">💬</span>
          </a>
       )}
@@ -588,7 +641,6 @@ export default function App() {
                 <div className="bg-[#B5651D] p-4 rounded-3xl border border-[#965216] shadow-md text-white"><div className="text-[10px] font-bold text-white/80 uppercase">Est. Daily Rev.</div><div className="text-xl font-extrabold mt-1">₹{subscriptions.filter(s => s.status === 'Active').reduce((acc, s) => acc + (Number(s.price) || 0), 0)}</div></div>
               </div>
 
-              {/* Date Filter for Finance */}
               <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
                 <h2 className="font-bold text-sm text-[#2D241E] mb-3">📅 Filter Finance & Exports</h2>
                 <div className="flex gap-2 mb-3">
@@ -657,7 +709,6 @@ export default function App() {
           {adminTab === 'broadcast' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-2">📢 Push Notification Center</h2>
-              <p className="text-[10px] text-[#796C61] mb-4">Send a direct message to all customer apps instantly.</p>
               <form onSubmit={handleBroadcast}>
                 <textarea placeholder="Write your broadcast message here..." value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} className="w-full text-xs p-3 bg-[#F8F5EE] rounded-xl border border-[#EBE5D9] h-24 mb-3" required />
                 <button type="submit" className="w-full bg-[#1E3F2D] text-white text-xs py-3 rounded-xl font-bold">Send to All Users 🚀</button>
@@ -791,14 +842,19 @@ export default function App() {
 
           {deliveryTab === 'pending' && (
             <div className="space-y-3">
-              <div className="flex justify-end">
-                <button type="button" onClick={sortDeliveriesByLocation} className="bg-white border border-[#EBE5D9] text-[#1E3F2D] text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm">📍 Sort by Nearest</button>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={sortDeliveriesByLocation} className="bg-white border border-[#EBE5D9] text-[#1E3F2D] text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm">📍 Sort Nearest</button>
+                <button type="button" onClick={openGoogleMapsRoute} className="bg-[#1E3F2D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1">🗺️ Open Map Route</button>
               </div>
+
+              {displaySubscriptions.length === 0 && (<div className="text-center p-8 bg-white rounded-3xl border border-[#EBE5D9] shadow-sm"><div className="text-4xl mb-2 opacity-80">🎉</div><div className="text-xs text-[#796C61] font-bold">No pending deliveries!</div></div>)}
+              
               {displaySubscriptions.map((sub, idx) => {
                 const cust = customers.find(c => String(c.id) === String(sub.customer_id));
                 const todayStr = new Date().toISOString().split('T')[0];
                 let todayQty = sub.quantity;
                 if(sub.modifications && sub.modifications[todayStr] !== undefined) todayQty = sub.modifications[todayStr];
+                
                 if (todayQty === 0) return null;
 
                 return (
@@ -831,6 +887,20 @@ export default function App() {
       {/* CUSTOMER VIEW */}
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
+
+          {/* 🔥 STREAK BADGE */}
+          {user && calculateStreak() > 0 && (
+            <div className="bg-gradient-to-r from-[#B5651D] to-[#965216] text-white p-3 rounded-2xl shadow-md flex items-center justify-between border border-[#965216]">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl animate-pulse">🔥</span>
+                <div>
+                  <div className="font-extrabold text-sm">{calculateStreak()}-Day Pure Streak!</div>
+                  <div className="text-[9px] text-white/80">Keep it up for a free healthy reward.</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="relative w-full h-32 sm:h-40 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
             {banners.map((b, idx) => (
               <div key={idx} className={`absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ease-in-out ${idx === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} style={{backgroundImage: `url(${b.img})`}}>
@@ -846,13 +916,12 @@ export default function App() {
             </div>
           </div>
 
-          {/* About Us / Trust Section */}
           <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
             <div className="w-16 h-16 bg-[#F8F5EE] rounded-full flex items-center justify-center text-3xl border border-[#EBE5D9] shrink-0">🐄</div>
             <div>
               <h3 className="font-extrabold text-sm text-[#1E3F2D] mb-1">Our Farm & Process 🌿</h3>
               <p className="text-[10px] text-[#796C61] leading-relaxed font-medium">
-                At <strong className="text-[#2D241E]">Nectar Roots</strong>, we bring you 100% pure, unadulterated A2 milk straight from our free-grazing farms in Rohtak. Delivered fresh in eco-friendly glass bottles before 7 AM. No chemicals, no preservatives.
+                At <strong className="text-[#2D241E]">Nectar Roots</strong>, we bring you 100% pure, unadulterated A2 milk straight from our free-grazing farms in Rohtak. Delivered fresh in eco-friendly glass bottles before 7 AM.
               </p>
             </div>
           </div>
@@ -951,21 +1020,26 @@ export default function App() {
               <button type="button" onClick={() => setShowOrdersModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
             <div className="space-y-3">
-               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
-                 <div className="text-center py-6 text-[10px] text-[#796C61]">No active orders.</div>
-               ) : (
-                 subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
-                    <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
-                      <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
-                      {s.status === 'Paused' ? (
-                         <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
-                      ) : (
-                         <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
-                      )}
-                    </div>
-                 ))
-               )}
+               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
+                    <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
+                    {s.status === 'Paused' ? (
+                       <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
+                    ) : (
+                       <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
+                    )}
+                  </div>
+               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {viewProofModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-white rounded-3xl p-3 max-w-sm w-full shadow-2xl">
+            <button type="button" onClick={() => setViewProofModal(null)} className="absolute top-2 right-2 bg-white w-8 h-8 rounded-full">✕</button>
+            <img src={viewProofModal} alt="Proof" className="w-full rounded-2xl" />
           </div>
         </div>
       )}
@@ -1048,16 +1122,12 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border">
             <div>
               <div className="flex justify-between items-center pb-3 border-b mb-4"><h3 className="font-extrabold text-sm">🛒 Cart</h3><button type="button" onClick={() => setShowCartModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button></div>
-              {cart.length === 0 ? (<div className="py-12 text-center space-y-4"><p className="text-sm font-bold text-[#796C61]">Your cart is empty!</p></div>) : (
-                <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
-                  {cart.map((item) => (
-                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border shadow-sm mb-2">
-                      <div className="font-bold text-xs">{item.name}</div>
-                      <div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold">-</button><span className="text-xs font-extrabold w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
-                    </div>
-                  ))}
+              {cart.map((item) => (
+                <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border shadow-sm mb-2">
+                  <div className="font-bold text-xs">{item.name}</div>
+                  <div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold">-</button><span className="text-xs font-extrabold w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
                 </div>
-              )}
+              ))}
             </div>
             {cart.length > 0 && (<button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs mt-4">Proceed ➔</button>)}
           </div>
