@@ -26,6 +26,7 @@ export default function App() {
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false); 
   const [showNotifModal, setShowNotifModal] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
   const [viewProduct, setViewProduct] = useState<any>(null); 
   const [adminViewCustomer, setAdminViewCustomer] = useState<any>(null);
   const [viewProofModal, setViewProofModal] = useState<string | null>(null);
@@ -73,6 +74,9 @@ export default function App() {
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [agentLocation, setAgentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [sortedDeliveryMode, setSortedDeliveryMode] = useState(false);
+
+  const [financeStart, setFinanceStart] = useState('');
+  const [financeEnd, setFinanceEnd] = useState('');
 
   const [installPrompt, setInstallPrompt] = useState<any>(null);
 
@@ -286,7 +290,6 @@ export default function App() {
     } catch (err: any) { alert("Delivery Error: " + err.message); }
   };
 
-  // ✅ FULLY REPAIRED EDIT PRODUCT FUNCTION
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault(); 
     if (!editingProduct) return;
@@ -298,8 +301,6 @@ export default function App() {
       }).eq('id', editingProduct.id);
       
       if (error) throw error;
-      
-      // Update locally immediately
       setProducts(products.map((p) => String(p.id) === String(editingProduct.id) ? { ...p, ...editingProduct, price: Number(editingProduct.price) } : p)); 
       setEditingProduct(null); 
       showToast('Product updated successfully! ✅');
@@ -382,7 +383,13 @@ export default function App() {
       const newTxs = cart.map((item) => ({ customer_name: activeCustomer.name, item: `Store Order: ${item.name}`, amount: item.price * item.quantity }));
       if (appliedDiscount > 0) newTxs.push({ customer_name: activeCustomer.name, item: `Discount Applied (${promoInput.toUpperCase()})`, amount: -appliedDiscount });
       await supabase.from('transactions').insert(newTxs);
-      fetchLiveDatabaseData(); setCart([]); setAppliedDiscount(0); setPromoInput(''); setShowCartModal(false); showToast(`Order Placed! ₹${total} deducted.`);
+      
+      fetchLiveDatabaseData(); 
+      setCart([]); 
+      setAppliedDiscount(0); 
+      setPromoInput(''); 
+      setShowCartModal(false); 
+      setOrderSuccess(true); // ✅ SHOW SUCCESS MODAL
     } catch (e: any) { alert('Checkout failed: ' + e.message); }
   };
 
@@ -412,9 +419,15 @@ export default function App() {
     } catch(e:any) { alert(e.message); }
   };
 
+  const filteredTx = transactions.filter(t => {
+    if(!financeStart || !financeEnd) return true;
+    const d = new Date(t.created_at).toISOString().split('T')[0];
+    return d >= financeStart && d <= financeEnd;
+  });
+
   const downloadExcelReport = () => {
     let csvContent = "Date,Type,Customer Name,Amount (Rs),Delivery Agent,Details\n";
-    transactions.forEach(t => {
+    filteredTx.forEach(t => {
       const date = new Date(t.created_at).toLocaleDateString();
       const isCredit = t.item.includes('Recharge') || t.item.includes('Bonus');
       const type = isCredit ? 'Credit' : 'Debit/Delivery';
@@ -478,8 +491,8 @@ export default function App() {
   const unreadCount = userNotifications.filter(n => !n.is_read).length;
 
   const banners = [
-    { title: "Pure A2 Milk & Farm Produce", sub: "Straight from soil to your soul. 🌾", bg: "from-[#1E3F2D] to-[#2C523D]", icon: "🏺" },
-    { title: "Recharge Wallet & Subscribe", sub: "100% Contactless Daily Service. 🛵", bg: "from-[#B5651D] to-[#965216]", icon: "💳" }
+    { title: "Pure A2 Cow Milk", sub: "Straight from soil to your soul. 🌾", img: "https://images.unsplash.com/photo-1544365558-35aa4afcf11f?auto=format&fit=crop&q=80&w=600" },
+    { title: "Farm Fresh Dairy", sub: "100% Contactless Daily Service. 🛵", img: "https://images.unsplash.com/photo-1528659103995-1f9196b01476?auto=format&fit=crop&q=80&w=600" }
   ];
 
   return (
@@ -489,6 +502,13 @@ export default function App() {
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-xs px-4 py-3 rounded-2xl shadow-2xl text-white font-bold text-xs text-center border transition-all ${toast.type === 'error' ? 'bg-[#8B0000] border-[#5C0000]' : 'bg-[#1E3F2D] border-[#152E20]'}`}>
           {toast.msg}
         </div>
+      )}
+
+      {/* WhatsApp Floating Button */}
+      {(role === 'customer' || role === 'guest') && (
+         <a href="https://wa.me/919050800689?text=Hi Nectar Roots," target="_blank" rel="noopener noreferrer" className="fixed bottom-24 right-4 bg-[#25D366] text-white w-14 h-14 rounded-full shadow-lg z-30 flex items-center justify-center text-3xl hover:scale-105 transition-transform">
+           <span className="mb-0.5">💬</span>
+         </a>
       )}
 
       {installPrompt && (
@@ -567,15 +587,44 @@ export default function App() {
                 <div className="bg-[#1E3F2D] p-4 rounded-3xl border border-[#152E20] shadow-md text-[#F4F0E6]"><div className="text-[10px] font-bold text-[#A5C0A0] uppercase">Wallet Liabilities</div><div className="text-xl font-extrabold text-white mt-1">₹{customers.reduce((acc, c) => acc + (Number(c.wallet_balance) || 0), 0)}</div></div>
                 <div className="bg-[#B5651D] p-4 rounded-3xl border border-[#965216] shadow-md text-white"><div className="text-[10px] font-bold text-white/80 uppercase">Est. Daily Rev.</div><div className="text-xl font-extrabold mt-1">₹{subscriptions.filter(s => s.status === 'Active').reduce((acc, s) => acc + (Number(s.price) || 0), 0)}</div></div>
               </div>
-              <button type="button" onClick={downloadExcelReport} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#1E3F2D] font-extrabold py-3.5 rounded-2xl shadow-sm text-xs flex items-center justify-center gap-2 transition">
-                <span className="text-lg">📥</span> Download Monthly Budget & Dispatch (Excel)
-              </button>
+
+              {/* Date Filter for Finance */}
+              <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
+                <h2 className="font-bold text-sm text-[#2D241E] mb-3">📅 Filter Finance & Exports</h2>
+                <div className="flex gap-2 mb-3">
+                  <div className="flex-1"><label className="text-[9px] font-bold text-[#796C61]">Start Date</label><input type="date" value={financeStart} onChange={(e)=>setFinanceStart(e.target.value)} className="w-full text-[10px] px-2 py-1.5 rounded border border-[#EBE5D9] bg-[#F8F5EE]" /></div>
+                  <div className="flex-1"><label className="text-[9px] font-bold text-[#796C61]">End Date</label><input type="date" value={financeEnd} onChange={(e)=>setFinanceEnd(e.target.value)} className="w-full text-[10px] px-2 py-1.5 rounded border border-[#EBE5D9] bg-[#F8F5EE]" /></div>
+                </div>
+                <div className="flex justify-between items-center bg-[#F8F5EE] p-2 rounded-xl mb-3 border border-[#EBE5D9]">
+                  <span className="text-[10px] font-bold text-[#796C61]">Filtered Sales: <strong className="text-[#1E3F2D]">₹{filteredTx.filter(t => !t.item.includes('Recharge') && !t.item.includes('Bonus')).reduce((sum, t) => sum + (Number(t.amount) || 0), 0)}</strong></span>
+                  <span className="text-[10px] font-bold text-[#796C61]">Recharges: <strong className="text-[#B5651D]">₹{filteredTx.filter(t => t.item.includes('Recharge')).reduce((sum, t) => sum + (Number(t.amount) || 0), 0)}</strong></span>
+                </div>
+                <button type="button" onClick={downloadExcelReport} className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-white font-extrabold py-3 rounded-xl shadow-sm text-xs flex items-center justify-center gap-2 transition">
+                  <span className="text-lg">📥</span> Download Filtered Report
+                </button>
+              </div>
+
+              <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm mt-4">
+                <h2 className="font-bold text-sm text-[#2D241E] mb-4">⏸️ Vacation Mode (Paused Subs)</h2>
+                {subscriptions.filter(s => s.status === 'Paused').length === 0 && <div className="text-xs text-center py-6 text-[#796C61] font-medium">No deliveries are paused right now.</div>}
+                {subscriptions.filter(s => s.status === 'Paused').map((s, idx) => (
+                  <div key={idx} className="p-3 bg-[#8B0000]/5 rounded-2xl border border-[#8B0000]/20 mb-3 flex justify-between items-center">
+                    <div>
+                      <div className="font-extrabold text-xs text-[#8B0000]">{s.customer_name}</div>
+                      <div className="text-[11px] text-[#796C61] mt-0.5">{s.product_name} ({s.quantity} qty)</div>
+                      {(s.pause_start && s.pause_end) && (<div className="text-[9px] font-bold bg-white text-[#8B0000] px-2 py-0.5 rounded border border-[#8B0000]/20 mt-1.5 inline-block">Till: {s.pause_end}</div>)}
+                    </div>
+                    <span className="bg-[#8B0000] text-white text-[10px] font-bold px-2 py-1 rounded-lg">PAUSED</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {adminTab === 'dispatch' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-1">📝 Tomorrow's Dispatch Sheet</h2>
+              <p className="text-[10px] text-[#796C61] mb-4">Calculated from Active Subs & Daily Modifications</p>
               {Object.keys(getDispatchData()).length === 0 ? (
                  <div className="text-xs text-center py-8 text-[#796C61] font-medium">No active subscriptions found.</div>
               ) : (
@@ -608,6 +657,7 @@ export default function App() {
           {adminTab === 'broadcast' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-2">📢 Push Notification Center</h2>
+              <p className="text-[10px] text-[#796C61] mb-4">Send a direct message to all customer apps instantly.</p>
               <form onSubmit={handleBroadcast}>
                 <textarea placeholder="Write your broadcast message here..." value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} className="w-full text-xs p-3 bg-[#F8F5EE] rounded-xl border border-[#EBE5D9] h-24 mb-3" required />
                 <button type="submit" className="w-full bg-[#1E3F2D] text-white text-xs py-3 rounded-xl font-bold">Send to All Users 🚀</button>
@@ -627,6 +677,7 @@ export default function App() {
                       </div>
                       <div className="text-[11px] text-[#796C61] mt-1 flex flex-col gap-0.5">
                         <span>📞 {c.phone}</span>
+                        {c.lat && <span>📍 Lat: {c.lat.toFixed(4)}, Lng: {c.lng.toFixed(4)}</span>}
                       </div>
                       <div className="flex gap-4 items-center mt-1.5">
                         <div className="text-[11px] font-extrabold text-[#B5651D]">Wallet: ₹{c.wallet_balance || 0}</div>
@@ -668,7 +719,7 @@ export default function App() {
                   <h2 className="font-bold text-sm text-[#2D241E]">📦 Live Database Inventory</h2>
                   <button type="button" onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Catalog</button>
                 </div>
-                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty.</div>}
+                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
                 <div className="divide-y divide-[#EBE5D9]">
                   {products.map((p) => (
                     <div key={p.id} className="py-3 flex justify-between items-center gap-2">
@@ -694,6 +745,8 @@ export default function App() {
           {adminTab === 'delivery' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-1">🛵 Today's Delivery Tracking</h2>
+              <p className="text-[10px] text-[#796C61] mb-4">Live completed deliveries by agents today.</p>
+              
               <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                  {transactions.filter(t => t.item?.includes('Delivery') && new Date(t.created_at).toDateString() === new Date().toDateString()).length === 0 ? (
                     <div className="text-[11px] text-[#796C61] text-center py-6">No deliveries completed today yet.</div>
@@ -701,11 +754,15 @@ export default function App() {
                    transactions.filter(t => t.item?.includes('Delivery') && new Date(t.created_at).toDateString() === new Date().toDateString()).map((t, idx) => {
                      const agentMatch = t.item.match(/\[Agent: (.*?)\]/);
                      const agent = agentMatch ? agentMatch[1] : 'Unknown Agent';
+                     const productInfo = t.item.split(' [Agent:')[0];
                      return (
                        <div key={idx} className="p-3 bg-[#F8F5EE] rounded-2xl border border-[#EBE5D9] text-xs">
                          <div className="flex justify-between items-start mb-1">
-                           <div className="font-bold text-[#1E3F2D]">{t.item.split(' [Agent:')[0]}</div>
-                           <div className="text-[9px] font-extrabold bg-white px-2 py-0.5 rounded border border-[#EBE5D9] text-[#796C61]">{new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                           <div className="font-bold text-[#1E3F2D]">{productInfo}</div>
+                           <div className="flex gap-2">
+                             {t.proof_image && <button type="button" onClick={() => setViewProofModal(t.proof_image)} className="text-[10px] bg-white border border-[#EBE5D9] px-1.5 py-0.5 rounded">📸 Proof</button>}
+                             <div className="text-[9px] font-extrabold bg-white px-2 py-0.5 rounded border border-[#EBE5D9] text-[#796C61]">{new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                           </div>
                          </div>
                          <div className="text-[10px] text-[#796C61] font-medium flex justify-between">
                            <span>To: <strong className="text-[#2D241E]">{t.customer_name}</strong></span>
@@ -774,13 +831,30 @@ export default function App() {
       {/* CUSTOMER VIEW */}
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
-          <div className="relative w-full h-28 sm:h-32 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
+          <div className="relative w-full h-32 sm:h-40 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
             {banners.map((b, idx) => (
-              <div key={idx} className={`absolute inset-0 w-full h-full p-4 transition-opacity duration-700 ease-in-out bg-gradient-to-br ${b.bg} text-[#F4F0E6] flex flex-col justify-center ${idx === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
-                <div className="relative z-10"><h2 className="text-sm sm:text-base font-extrabold leading-tight">{b.title}</h2><p className="text-[10px] sm:text-[11px] text-white/90 mt-1 font-bold tracking-wide">{b.sub}</p></div>
-                <div className="absolute -right-2 -bottom-5 text-7xl opacity-15">{b.icon}</div>
+              <div key={idx} className={`absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ease-in-out ${idx === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} style={{backgroundImage: `url(${b.img})`}}>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                <div className="absolute bottom-4 left-4 right-4 z-10">
+                  <h2 className="text-sm sm:text-base font-extrabold leading-tight text-white">{b.title}</h2>
+                  <p className="text-[10px] sm:text-[11px] text-white/90 mt-1 font-bold tracking-wide">{b.sub}</p>
+                </div>
               </div>
             ))}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+              {banners.map((_, i) => (<div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentBanner ? 'bg-white w-4' : 'bg-white/50'}`}></div>))}
+            </div>
+          </div>
+
+          {/* About Us / Trust Section */}
+          <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+            <div className="w-16 h-16 bg-[#F8F5EE] rounded-full flex items-center justify-center text-3xl border border-[#EBE5D9] shrink-0">🐄</div>
+            <div>
+              <h3 className="font-extrabold text-sm text-[#1E3F2D] mb-1">Our Farm & Process 🌿</h3>
+              <p className="text-[10px] text-[#796C61] leading-relaxed font-medium">
+                At <strong className="text-[#2D241E]">Nectar Roots</strong>, we bring you 100% pure, unadulterated A2 milk straight from our free-grazing farms in Rohtak. Delivered fresh in eco-friendly glass bottles before 7 AM. No chemicals, no preservatives.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar px-1">
@@ -815,6 +889,17 @@ export default function App() {
 
       {/* --- ALL MODALS (RENDERED EXACTLY ONCE TO PREVENT CONFLICTS) --- */}
       
+      {orderSuccess && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-8 rounded-3xl text-center shadow-2xl max-w-sm w-full animate-slide-up border border-[#EBE5D9]">
+            <div className="w-24 h-24 bg-[#1E3F2D] text-white rounded-full flex items-center justify-center text-5xl mx-auto mb-5 shadow-lg">✅</div>
+            <h2 className="font-extrabold text-2xl text-[#1E3F2D] mb-2">Order Confirmed!</h2>
+            <p className="text-[11px] text-[#796C61] font-medium leading-relaxed mb-6">Thank you for choosing purity. Your order has been placed successfully and will be delivered to your doorstep.</p>
+            <button type="button" onClick={() => setOrderSuccess(false)} className="w-full bg-[#1E3F2D] text-white font-extrabold py-3.5 rounded-xl shadow-md active:scale-95 transition-transform">Back to Home</button>
+          </div>
+        </div>
+      )}
+
       {showNotifModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
@@ -823,9 +908,13 @@ export default function App() {
               <button type="button" onClick={() => setShowNotifModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-              {notifications.filter(n => n.customer_id === currentCustomer?.id).map((n, i) => (
-                <div key={i} className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] shadow-sm text-xs font-bold text-[#2D241E]">{n.message}</div>
-              ))}
+              {notifications.filter(n => n.customer_id === currentCustomer?.id).length === 0 ? (
+                <div className="text-center py-6 text-[10px] text-[#796C61]">No new notifications.</div>
+              ) : (
+                notifications.filter(n => n.customer_id === currentCustomer?.id).map((n, i) => (
+                  <div key={i} className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] shadow-sm text-xs font-bold text-[#2D241E]">{n.message}</div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -862,26 +951,21 @@ export default function App() {
               <button type="button" onClick={() => setShowOrdersModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
             <div className="space-y-3">
-               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
-                  <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
-                    <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
-                    {s.status === 'Paused' ? (
-                       <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
-                    ) : (
-                       <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
-                    )}
-                  </div>
-               ))}
+               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
+                 <div className="text-center py-6 text-[10px] text-[#796C61]">No active orders.</div>
+               ) : (
+                 subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
+                    <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
+                      <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
+                      {s.status === 'Paused' ? (
+                         <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
+                      ) : (
+                         <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
+                      )}
+                    </div>
+                 ))
+               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {viewProofModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-white rounded-3xl p-3 max-w-sm w-full shadow-2xl">
-            <button type="button" onClick={() => setViewProofModal(null)} className="absolute top-2 right-2 bg-white w-8 h-8 rounded-full">✕</button>
-            <img src={viewProofModal} alt="Proof" className="w-full rounded-2xl" />
           </div>
         </div>
       )}
@@ -964,12 +1048,16 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border">
             <div>
               <div className="flex justify-between items-center pb-3 border-b mb-4"><h3 className="font-extrabold text-sm">🛒 Cart</h3><button type="button" onClick={() => setShowCartModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button></div>
-              {cart.map((item) => (
-                <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border shadow-sm mb-2">
-                  <div className="font-bold text-xs">{item.name}</div>
-                  <div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold">-</button><span className="text-xs font-extrabold w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
+              {cart.length === 0 ? (<div className="py-12 text-center space-y-4"><p className="text-sm font-bold text-[#796C61]">Your cart is empty!</p></div>) : (
+                <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
+                  {cart.map((item) => (
+                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border shadow-sm mb-2">
+                      <div className="font-bold text-xs">{item.name}</div>
+                      <div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold">-</button><span className="text-xs font-extrabold w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
             {cart.length > 0 && (<button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs mt-4">Proceed ➔</button>)}
           </div>
