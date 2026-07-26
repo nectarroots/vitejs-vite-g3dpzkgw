@@ -5,7 +5,7 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState('guest');
   const [adminTab, setAdminTab] = useState<
-    'overview' | 'dispatch' | 'customers' | 'products' | 'delivery' | 'broadcast'
+    'overview' | 'dispatch' | 'customers' | 'products' | 'delivery' | 'broadcast' | 'promos'
   >('overview');
 
   const [customers, setCustomers] = useState<any[]>([]);
@@ -13,6 +13,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [promos, setPromos] = useState<any[]>([{ code: 'FIRSTFREE', discount: 50 }, { code: 'FESTIVAL20', discount: 20 }]);
   
   const [cart, setCart] = useState<any[]>(() => JSON.parse(localStorage.getItem('nr_cart') || '[]'));
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -27,6 +28,7 @@ export default function App() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [viewProduct, setViewProduct] = useState<any>(null); 
   const [adminViewCustomer, setAdminViewCustomer] = useState<any>(null);
+  const [viewProofModal, setViewProofModal] = useState<string | null>(null);
   
   const [selectedDelivery, setSelectedDelivery] = useState<any>(null); 
   const [selectedSubProduct, setSelectedSubProduct] = useState<any>(null);
@@ -50,6 +52,9 @@ export default function App() {
   const [signupPhone, setSignupPhone] = useState('');
   const [signupAddress, setSignupAddress] = useState('');
   const [signupReferral, setSignupReferral] = useState('');
+  const [signupLat, setSignupLat] = useState<number | null>(null);
+  const [signupLng, setSignupLng] = useState<number | null>(null);
+  
   const [loginError, setLoginError] = useState('');
   const [toast, setToast] = useState({ show: false, msg: '', type: '' });
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -58,10 +63,28 @@ export default function App() {
   const [vacationStart, setVacationStart] = useState('');
   const [vacationEnd, setVacationEnd] = useState('');
 
+  const [showModifyForm, setShowModifyForm] = useState<string | null>(null);
+  const [modifyDate, setModifyDate] = useState('');
+  const [modifyQty, setModifyQty] = useState('');
+
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(0);
+
+  const [proofImage, setProofImage] = useState<string | null>(null);
+  const [agentLocation, setAgentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [sortedDeliveryMode, setSortedDeliveryMode] = useState(false);
+
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
   const currentCustomer = user ? customers.find((c) => c.email === user.email || c.id === user.id) : null;
   const [newProd, setNewProd] = useState({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
 
   useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    });
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
     });
@@ -112,17 +135,20 @@ export default function App() {
     setTimeout(() => setToast({ show: false, msg: '', type: '' }), 3500);
   };
 
-  const sendEmailAlert = async (subject: string, message: string, customerEmail: string = 'admin@nectarroots.com') => {
-    const myAccessKey = '6c022681-4948-4be2-973e-3548e836739f'; 
-    try {
-      await fetch('https://api.web3forms.com/submit', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ access_key: myAccessKey, subject, from_name: 'Nectar Roots', email: customerEmail, message }) });
-    } catch (error) { console.error('Email Error:', error); }
-  };
-
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message); else { showToast('Secure Dashboard Accessed 👑'); closeModal(); }
+  };
+
+  const captureLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setSignupLat(pos.coords.latitude);
+        setSignupLng(pos.coords.longitude);
+        showToast("Location Captured 📍");
+      }, () => showToast("Location denied", "error"));
+    }
   };
 
   const handleCustomerSignup = async (e: React.FormEvent) => {
@@ -141,7 +167,11 @@ export default function App() {
         }
       }
       const newRefCode = `NR${signupName.substring(0, 3).toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
-      const newCustomer = { id: data.user.id, name: signupName, email: emailInput, phone: signupPhone, address: signupAddress, wallet_balance: walletBonus, pending_bottles: 0, is_blocked: false, referral_code: newRefCode, qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}` };
+      const newCustomer = { 
+        id: data.user.id, name: signupName, email: emailInput, phone: signupPhone, address: signupAddress, 
+        wallet_balance: walletBonus, pending_bottles: 0, is_blocked: false, referral_code: newRefCode, 
+        qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}`, lat: signupLat, lng: signupLng
+      };
       await supabase.from('customers').insert([newCustomer]);
       if (refCodeUsed) { await supabase.from('transactions').insert([{ customer_name: signupName, item: `Welcome Referral Bonus 🎁`, amount: 100 }]); }
       fetchLiveDatabaseData(); showToast('Account Created! 🎉'); closeModal();
@@ -161,7 +191,12 @@ export default function App() {
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); setRole('guest'); showToast('Securely logged out 👋'); };
-  const closeModal = () => { setShowLoginModal(false); setAuthView('login'); setAuthRoleTab('customer'); setEmailInput(''); setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setSignupReferral(''); setLoginError(''); };
+  
+  const closeModal = () => { 
+    setShowLoginModal(false); setAuthView('login'); setAuthRoleTab('customer'); setEmailInput(''); 
+    setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setSignupReferral(''); 
+    setSignupLat(null); setSignupLng(null); setLoginError(''); 
+  };
 
   const handleCreateSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,10 +204,13 @@ export default function App() {
     if (!selectedSubProduct || !currentCustomer) return;
     if (currentCustomer.is_blocked) return showToast('Account suspended. Contact support.', 'error');
     try {
-      const newSub = { customer_id: currentCustomer.id, customer_name: currentCustomer.name, product_name: selectedSubProduct.name, quantity: subQty, price: selectedSubProduct.price * subQty, frequency: subFreq, payment_type: subPayType, status: 'Active', delivery_slot: subSlot, delivery_instruction: subInstruction };
+      const newSub = { 
+        customer_id: currentCustomer.id, customer_name: currentCustomer.name, product_name: selectedSubProduct.name, quantity: subQty, 
+        price: selectedSubProduct.price * subQty, frequency: subFreq, payment_type: subPayType, status: 'Active', 
+        delivery_slot: subSlot, delivery_instruction: subInstruction, modifications: {} 
+      };
       await supabase.from('subscriptions').insert([newSub]);
       fetchLiveDatabaseData(); setShowSubscribeModal(false); showToast(`Subscription Started! 📅`);
-      sendEmailAlert(`📅 New Subscription: ${currentCustomer.name}`, `${currentCustomer.name} subscribed to ${selectedSubProduct.name}. Shift: ${subSlot}`);
     } catch (err: any) { alert("Error: " + err.message); }
   };
 
@@ -182,6 +220,17 @@ export default function App() {
       await supabase.from('subscriptions').update({ status: 'Paused', pause_start: vacationStart, pause_end: vacationEnd }).eq('id', subId);
       fetchLiveDatabaseData(); setShowVacationForm(null); showToast(`Vacation set for ${productName} 🌴`);
     } catch (err: any) { alert('Pause Error: ' + err.message); }
+  };
+
+  const handleAddModification = async (sub: any) => {
+    if(!modifyDate || modifyQty === '') return showToast('Enter date and quantity', 'error');
+    try {
+      const currentMods = sub.modifications || {};
+      const updatedMods = { ...currentMods, [modifyDate]: Number(modifyQty) };
+      await supabase.from('subscriptions').update({ modifications: updatedMods }).eq('id', sub.id);
+      fetchLiveDatabaseData(); setShowModifyForm(null); setModifyDate(''); setModifyQty('');
+      showToast(`Quantity updated for ${modifyDate}`);
+    } catch(e:any) { alert(e.message); }
   };
 
   const handleResume = async (subId: string, productName: string) => {
@@ -198,20 +247,40 @@ export default function App() {
     try { await supabase.from('customers').update({ is_blocked: newStatus }).eq('id', cust.id); fetchLiveDatabaseData(); showToast(newStatus ? 'Customer Blocked 🚫' : 'Customer Unblocked ✅'); setAdminViewCustomer({...cust, is_blocked: newStatus}); } catch(e:any) { alert(e.message); }
   };
 
+  const handleFileChange = (e: any) => {
+    const file = e.target.files[0];
+    if(file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setProofImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleMarkDelivered = async (delivery: any) => {
     if (!delivery || !delivery.cust) return;
     const cust = delivery.cust;
-    const amountToDeduct = Number(delivery.price);
+    
+    let activeQty = delivery.quantity;
+    const todayStr = new Date().toISOString().split('T')[0];
+    if(delivery.modifications && delivery.modifications[todayStr] !== undefined) {
+      activeQty = delivery.modifications[todayStr];
+    }
+    if (activeQty === 0) {
+      setShowScannerModal(false); return showToast('Customer skipped delivery today.');
+    }
+
+    const amountToDeduct = Number(delivery.price / delivery.quantity) * activeQty;
+    
     try {
       if (delivery.payment_type === 'scan_deduct') {
         if (Number(cust.wallet_balance) < amountToDeduct) return showToast(`Failed: Low balance! (₹${cust.wallet_balance})`, 'error');
         await supabase.from('customers').update({ wallet_balance: Number(cust.wallet_balance) - amountToDeduct }).eq('id', cust.id);
-        await supabase.from('transactions').insert([{ customer_name: cust.name, item: `Delivery: ${delivery.product_name} [Agent: ${user.email}]`, amount: amountToDeduct }]);
+        await supabase.from('transactions').insert([{ customer_name: cust.name, item: `Delivery: ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`, amount: amountToDeduct, proof_image: proofImage }]);
       } else {
-        await supabase.from('transactions').insert([{ customer_name: cust.name, item: `Delivery (Auto-paid): ${delivery.product_name} [Agent: ${user.email}]`, amount: 0 }]);
+        await supabase.from('transactions').insert([{ customer_name: cust.name, item: `Delivery (Auto-paid): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`, amount: 0, proof_image: proofImage }]);
       }
-      try { await supabase.from('notifications').insert([{ customer_id: cust.id, message: `Your pure ${delivery.product_name} has been delivered successfully! 🥛`, is_read: false }]); } catch(e) {}
-      fetchLiveDatabaseData(); setShowScannerModal(false); showToast(`Delivered to ${cust.name}! ✅`);
+      try { await supabase.from('notifications').insert([{ customer_id: cust.id, message: `Your ${delivery.product_name} was delivered! 📸`, is_read: false }]); } catch(e) {}
+      fetchLiveDatabaseData(); setShowScannerModal(false); setProofImage(null); showToast(`Delivered to ${cust.name}! ✅`);
     } catch (err: any) { alert("Delivery Error: " + err.message); }
   };
 
@@ -228,34 +297,10 @@ export default function App() {
     try { await supabase.from('products').update({ is_active: newStatus }).eq('id', p.id); fetchLiveDatabaseData(); showToast(newStatus ? 'Product is Back in Stock!' : 'Product marked Out of Stock!'); } catch (err: any) { alert(err.message); }
   };
 
-  const handleSeedProducts = async () => {
-    const premiumCatalog = [
-      { name: 'Fresh Malai Paneer', price: 90, original_price: 110, unit: '200g', category: 'Dairy', icon: '🧀', tag: 'Fresh', is_active: true },
-      { name: 'Farm Fresh Dahi', price: 60, original_price: 75, unit: '500g', category: 'Dairy', icon: '🥣', tag: 'Probiotic', is_active: true },
-      { name: 'Masala Chaach', price: 45, original_price: 55, unit: '1 Liter', category: 'Dairy', icon: '🥛', tag: 'Cooling', is_active: true },
-      { name: 'White Butter (Unsalted)', price: 140, original_price: 160, unit: '250g', category: 'Dairy', icon: '🧈', tag: 'Pure', is_active: true },
-      { name: 'Fresh Khoya / Mawa', price: 110, original_price: 130, unit: '250g', category: 'Dairy', icon: '🍘', tag: 'Sweets', is_active: true },
-      { name: 'Fresh Cream / Malai', price: 80, original_price: 95, unit: '200g', category: 'Dairy', icon: '🍦', tag: 'Rich', is_active: true },
-      { name: 'Pure Goat Milk', price: 150, original_price: 170, unit: '1 Liter', category: 'Dairy', icon: '🐐', tag: 'Healthy', is_active: true },
-      { name: 'Desi Free-Range Eggs', price: 110, original_price: 130, unit: '6 Pack', category: 'Eggs', icon: '🥚', tag: 'Protein', is_active: true }
-    ];
-    const existingNames = products.map(p => p.name.toLowerCase());
-    const toInsert = premiumCatalog.filter(p => !existingNames.includes(p.name.toLowerCase()));
-    if (toInsert.length > 0) {
-      const { error } = await supabase.from('products').insert(toInsert);
-      if (error) { showToast(error.message, 'error'); } else { fetchLiveDatabaseData(); showToast(`${toInsert.length} Premium Products Added! 🚀`); }
-    } else { showToast('Catalog already up to date! ✅'); }
-  };
-
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editingProduct) return;
     await supabase.from('products').update({ name: editingProduct.name, price: editingProduct.price, category: editingProduct.category }).eq('id', editingProduct.id);
     setProducts(products.map((p) => String(p.id) === String(editingProduct.id) ? editingProduct : p)); setEditingProduct(null); showToast('Product updated!');
-  };
-
-  const handleDeleteProduct = async (id: string) => {
-    if (!window.confirm('Delete this product?')) return;
-    await supabase.from('products').delete().eq('id', id); setProducts(products.filter((p) => String(p.id) !== String(id))); showToast('Product deleted!');
   };
 
   const handleAddToCart = (product: any) => {
@@ -267,9 +312,10 @@ export default function App() {
     showToast(`Added ${product.name}`);
   };
 
-  const handleAddTrialPack = () => {
-    setCart([...cart, { id: 'trial-pack', name: '3-Day A2 Milk Trial Kit', price: 99, unit: 'Kit', icon: '🎁', quantity: 1 }]);
-    showToast(`Trial Kit added to cart!`);
+  const handleApplyPromo = () => {
+    const found = promos.find(p => p.code === promoInput.toUpperCase());
+    if (found) { setAppliedDiscount(found.discount); showToast(`Promo applied! ₹${found.discount} off.`); }
+    else { setAppliedDiscount(0); showToast('Invalid Promo Code', 'error'); }
   };
 
   const handleUpdateCartQuantity = (id: any, delta: number) => setCart(cart.map((item) => String(item.id) === String(id) ? { ...item, quantity: item.quantity + delta > 0 ? item.quantity + delta : 0 } : item).filter(i => i.quantity > 0) as any);
@@ -283,14 +329,16 @@ export default function App() {
     const activeCustomer = customers.find((c) => c.email === user.email || c.id === user.id);
     if (!activeCustomer) return showToast('Syncing profile, please try again.', 'error');
     if (activeCustomer.is_blocked) return showToast('Account suspended.', 'error');
-    const total = getCartTotal(); const balance = Number(activeCustomer.wallet_balance || 0);
+    const total = Math.max(0, getCartTotal() - appliedDiscount); 
+    const balance = Number(activeCustomer.wallet_balance || 0);
     if (balance < total) return showToast(`Low Balance! Wallet: ₹${balance}`, 'error');
 
     try {
       await supabase.from('customers').update({ wallet_balance: balance - total }).eq('id', activeCustomer.id);
       const newTxs = cart.map((item) => ({ customer_name: activeCustomer.name, item: `Store Order: ${item.name}`, amount: item.price * item.quantity }));
+      if (appliedDiscount > 0) newTxs.push({ customer_name: activeCustomer.name, item: `Discount Applied (${promoInput.toUpperCase()})`, amount: -appliedDiscount });
       await supabase.from('transactions').insert(newTxs);
-      fetchLiveDatabaseData(); setCart([]); setShowCartModal(false); showToast(`Order Placed! ₹${total} deducted.`);
+      fetchLiveDatabaseData(); setCart([]); setAppliedDiscount(0); setPromoInput(''); setShowCartModal(false); showToast(`Order Placed! ₹${total} deducted.`);
     } catch (e: any) { alert('Checkout failed: ' + e.message); }
   };
 
@@ -307,9 +355,7 @@ export default function App() {
   const markNotificationsRead = async () => {
     setShowNotifModal(true);
     const unread = notifications.filter(n => n.customer_id === currentCustomer?.id && !n.is_read);
-    if(unread.length > 0) {
-      try { await supabase.from('notifications').update({ is_read: true }).eq('customer_id', currentCustomer?.id); fetchLiveDatabaseData(); } catch(e) {}
-    }
+    if(unread.length > 0) { try { await supabase.from('notifications').update({ is_read: true }).eq('customer_id', currentCustomer?.id); fetchLiveDatabaseData(); } catch(e) {} }
   };
 
   const handleBroadcast = async (e: React.FormEvent) => {
@@ -337,28 +383,53 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `NectarRoots_Budget_Report_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    link.setAttribute("download", `NectarRoots_Report_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
     showToast('Excel Report Downloaded! 📊');
   };
 
   const getDispatchData = () => {
     const dispatch: Record<string, number> = {};
+    const todayStr = new Date().toISOString().split('T')[0];
     subscriptions.forEach(s => {
-      if(s.status === 'Active') { dispatch[s.product_name] = (dispatch[s.product_name] || 0) + Number(s.quantity); }
+      if(s.status === 'Active') {
+        let qty = Number(s.quantity);
+        if(s.modifications && s.modifications[todayStr] !== undefined) qty = Number(s.modifications[todayStr]);
+        dispatch[s.product_name] = (dispatch[s.product_name] || 0) + qty; 
+      }
     });
     return dispatch;
   };
 
+  const sortDeliveriesByLocation = () => {
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        setAgentLocation({lat: pos.coords.latitude, lng: pos.coords.longitude});
+        setSortedDeliveryMode(true);
+        showToast("Sorted by nearest location 📍");
+      }, () => showToast("Location denied", "error"));
+    }
+  };
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; const dLat = (lat2-lat1)*(Math.PI/180); const dLon = (lon2-lon1)*(Math.PI/180);
+    const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*(Math.PI/180))*Math.cos(lat2*(Math.PI/180))*Math.sin(dLon/2)*Math.sin(dLon/2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+  };
+
+  let displaySubscriptions = subscriptions.filter(s => s.status === 'Active');
+  if (sortedDeliveryMode && agentLocation) {
+    displaySubscriptions = displaySubscriptions.sort((a, b) => {
+      const custA = customers.find(c => c.id === a.customer_id);
+      const custB = customers.find(c => c.id === b.customer_id);
+      const distA = custA?.lat ? calculateDistance(agentLocation.lat, agentLocation.lng, custA.lat, custA.lng) : 9999;
+      const distB = custB?.lat ? calculateDistance(agentLocation.lat, agentLocation.lng, custB.lat, custB.lng) : 9999;
+      return distA - distB;
+    });
+  }
+
   const agentTransactions = transactions.filter(t => t.item?.includes(`[Agent: ${user?.email}]`));
-  const agentTotalCollected = agentTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-  const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-  const totalRecharges = transactions.filter((t) => t.item?.includes('Recharge')).reduce((sum, t) => sum + (t.amount || 0), 0);
-  const totalSales = totalRevenue - totalRecharges;
   const filteredProducts = selectedCategory === 'All' ? products : products.filter((p) => (p.category || '').toLowerCase() === selectedCategory.toLowerCase());
-  
   const userNotifications = notifications.filter(n => n.customer_id === currentCustomer?.id);
   const unreadCount = userNotifications.filter(n => !n.is_read).length;
 
@@ -373,6 +444,13 @@ export default function App() {
       {toast.show && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-xs px-4 py-3 rounded-2xl shadow-2xl text-white font-bold text-xs text-center border transition-all ${toast.type === 'error' ? 'bg-[#8B0000] border-[#5C0000]' : 'bg-[#1E3F2D] border-[#152E20]'}`}>
           {toast.msg}
+        </div>
+      )}
+
+      {installPrompt && (
+        <div className="bg-[#B5651D] text-white text-[10px] p-2 flex justify-between items-center px-4 font-bold sticky top-0 z-30">
+          <span>📲 Install Nectar Roots App for faster access!</span>
+          <button type="button" onClick={() => installPrompt.prompt()} className="bg-white text-[#B5651D] px-2 py-1 rounded shadow-sm">Install</button>
         </div>
       )}
 
@@ -429,9 +507,9 @@ export default function App() {
           </div>
           
           <div className="bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm flex overflow-x-auto no-scrollbar gap-1.5">
-            {['overview', 'dispatch', 'broadcast', 'customers', 'products', 'delivery'].map((tab) => (
+            {['overview', 'dispatch', 'broadcast', 'promos', 'customers', 'products', 'delivery'].map((tab) => (
               <button key={tab} type="button" onClick={() => setAdminTab(tab as any)} className={`py-2 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${adminTab === tab ? 'bg-[#1E3F2D] text-[#F4F0E6] font-bold shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1] font-semibold'} capitalize`}>
-                <span>{tab === 'customers' ? '👥' : tab === 'products' ? '📦' : tab === 'dispatch' ? '📝' : tab === 'broadcast' ? '📢' : tab === 'delivery' ? '🛵' : '📊'}</span> {tab}
+                <span>{tab === 'customers' ? '👥' : tab === 'products' ? '📦' : tab === 'dispatch' ? '📝' : tab === 'broadcast' ? '📢' : tab === 'delivery' ? '🛵' : tab === 'promos' ? '🏷️' : '📊'}</span> {tab}
               </button>
             ))}
           </div>
@@ -468,7 +546,7 @@ export default function App() {
           {adminTab === 'dispatch' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-1">📝 Tomorrow's Dispatch Sheet</h2>
-              <p className="text-[10px] text-[#796C61] mb-4">Calculated from all Active Subscriptions</p>
+              <p className="text-[10px] text-[#796C61] mb-4">Calculated from Active Subs & Daily Modifications</p>
               {Object.keys(getDispatchData()).length === 0 ? (
                  <div className="text-xs text-center py-8 text-[#796C61] font-medium">No active subscriptions found.</div>
               ) : (
@@ -484,12 +562,26 @@ export default function App() {
             </div>
           )}
 
+          {adminTab === 'promos' && (
+            <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
+              <h2 className="font-bold text-sm text-[#2D241E] mb-2">🏷️ Active Promo Codes</h2>
+              <div className="space-y-2">
+                {promos.map((p, i) => (
+                  <div key={i} className="flex justify-between items-center bg-[#F8F5EE] p-3 rounded-xl border border-[#EBE5D9]">
+                    <span className="font-mono text-xs font-extrabold">{p.code}</span>
+                    <span className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded font-bold">₹{p.discount} OFF</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {adminTab === 'broadcast' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-2">📢 Push Notification Center</h2>
               <p className="text-[10px] text-[#796C61] mb-4">Send a direct message to all customer apps instantly.</p>
               <form onSubmit={handleBroadcast}>
-                <textarea placeholder="Write your broadcast message here... (e.g. Happy Diwali! Delivery is delayed by 30 mins today)" value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} className="w-full text-xs p-3 bg-[#F8F5EE] rounded-xl border border-[#EBE5D9] h-24 mb-3" required />
+                <textarea placeholder="Write your broadcast message here..." value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} className="w-full text-xs p-3 bg-[#F8F5EE] rounded-xl border border-[#EBE5D9] h-24 mb-3" required />
                 <button type="submit" className="w-full bg-[#1E3F2D] text-white text-xs py-3 rounded-xl font-bold">Send to All Users 🚀</button>
               </form>
             </div>
@@ -505,7 +597,10 @@ export default function App() {
                       <div className="font-extrabold text-xs text-[#2D241E] flex items-center gap-2">
                         {c.name} {c.is_blocked && <span className="text-[9px] bg-[#8B0000] text-white px-1.5 py-0.5 rounded">BLOCKED</span>}
                       </div>
-                      <div className="text-[11px] text-[#796C61] mt-1">📞 {c.phone}</div>
+                      <div className="text-[11px] text-[#796C61] mt-1 flex flex-col gap-0.5">
+                        <span>📞 {c.phone}</span>
+                        {c.lat && <span>📍 Lat: {c.lat.toFixed(4)}, Lng: {c.lng.toFixed(4)}</span>}
+                      </div>
                       <div className="flex gap-4 items-center mt-1.5">
                         <div className="text-[11px] font-extrabold text-[#B5651D]">Wallet: ₹{c.wallet_balance || 0}</div>
                         <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-[#EBE5D9]">
@@ -542,11 +637,7 @@ export default function App() {
               </form>
               
               <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="font-bold text-sm text-[#2D241E]">📦 Live Database Inventory</h2>
-                  <button type="button" onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Premium Catalog</button>
-                </div>
-                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
+                <h2 className="font-bold text-sm text-[#2D241E] mb-4">📦 Live Database Inventory</h2>
                 <div className="divide-y divide-[#EBE5D9]">
                   {products.map((p) => (
                     <div key={p.id} className="py-3 flex justify-between items-center gap-2">
@@ -585,7 +676,10 @@ export default function App() {
                        <div key={idx} className="p-3 bg-[#F8F5EE] rounded-2xl border border-[#EBE5D9] text-xs">
                          <div className="flex justify-between items-start mb-1">
                            <div className="font-bold text-[#1E3F2D]">{productInfo}</div>
-                           <div className="text-[9px] font-extrabold bg-white px-2 py-0.5 rounded border border-[#EBE5D9] text-[#796C61]">{new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                           <div className="flex gap-2">
+                             {t.proof_image && <button type="button" onClick={() => setViewProofModal(t.proof_image)} className="text-[10px] bg-white border border-[#EBE5D9] px-1.5 py-0.5 rounded">📸 Proof</button>}
+                             <div className="text-[9px] font-extrabold bg-white px-2 py-0.5 rounded border border-[#EBE5D9] text-[#796C61]">{new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                           </div>
                          </div>
                          <div className="text-[10px] text-[#796C61] font-medium flex justify-between">
                            <span>To: <strong className="text-[#2D241E]">{t.customer_name}</strong></span>
@@ -633,6 +727,7 @@ export default function App() {
         </div>
       )}
 
+      {/* DELIVERY BOY DASHBOARD */}
       {role === 'delivery' && (
         <div className="max-w-md mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#B5651D] to-[#965216] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#965216] flex justify-between items-center">
@@ -645,9 +740,20 @@ export default function App() {
 
           {deliveryTab === 'pending' && (
             <div className="space-y-3">
-              {subscriptions.filter(s => s.status === 'Active').length === 0 && (<div className="text-center p-8 bg-white rounded-3xl border border-[#EBE5D9] shadow-sm"><div className="text-4xl mb-2 opacity-80">🎉</div><div className="text-xs text-[#796C61] font-bold">No pending deliveries!</div></div>)}
-              {subscriptions.filter(s => s.status === 'Active').map((sub, idx) => {
+              <div className="flex justify-end">
+                <button type="button" onClick={sortDeliveriesByLocation} className="bg-white border border-[#EBE5D9] text-[#1E3F2D] text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm">📍 Sort by Nearest</button>
+              </div>
+
+              {displaySubscriptions.length === 0 && (<div className="text-center p-8 bg-white rounded-3xl border border-[#EBE5D9] shadow-sm"><div className="text-4xl mb-2 opacity-80">🎉</div><div className="text-xs text-[#796C61] font-bold">No pending deliveries!</div></div>)}
+              
+              {displaySubscriptions.map((sub, idx) => {
                 const cust = customers.find(c => String(c.id) === String(sub.customer_id));
+                const todayStr = new Date().toISOString().split('T')[0];
+                let todayQty = sub.quantity;
+                if(sub.modifications && sub.modifications[todayStr] !== undefined) todayQty = sub.modifications[todayStr];
+                
+                if (todayQty === 0) return null;
+
                 return (
                   <div key={idx} className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm group">
                     <div className="flex justify-between items-start">
@@ -657,14 +763,20 @@ export default function App() {
                       )}
                     </div>
                     
-                    <div className="text-[10px] font-medium text-[#796C61] mt-0.5 mb-2 leading-snug">📍 {cust?.address || 'Address not available'}</div>
+                    <div className="text-[10px] font-medium text-[#796C61] mt-0.5 mb-2 leading-snug flex flex-col gap-0.5">
+                      <span>📍 {cust?.address || 'Address not available'}</span>
+                      {(agentLocation && cust?.lat) && <span className="text-[#B5651D] font-bold">📏 {calculateDistance(agentLocation.lat, agentLocation.lng, cust.lat, cust.lng).toFixed(2)} km away</span>}
+                    </div>
                     <div className="flex gap-2 mb-2">
                       <span className="text-[9px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-2 py-1 rounded">{sub.delivery_slot || 'Morning (5-7 AM)'}</span>
                       <span className="text-[9px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-2 py-1 rounded">{sub.delivery_instruction || 'Leave in Bag 🔕'}</span>
                     </div>
 
-                    <div className="flex justify-between items-center bg-[#F8F5EE] p-2.5 rounded-xl mb-3 border border-[#EBE5D9]"><div className="text-xs font-bold text-[#1E3F2D]"><span>🥛</span> {sub.product_name}</div><div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">{sub.quantity} qty</div></div>
-                    <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button type="button" onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Scan & Deliver</button></div>
+                    <div className="flex justify-between items-center bg-[#F8F5EE] p-2.5 rounded-xl mb-3 border border-[#EBE5D9]">
+                      <div className="text-xs font-bold text-[#1E3F2D]"><span>🥛</span> {sub.product_name}</div>
+                      <div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">{todayQty} qty</div>
+                    </div>
+                    <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button type="button" onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Deliver</button></div>
                   </div>
                 );
               })}
@@ -687,16 +799,6 @@ export default function App() {
 
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
-          
-          <div className="bg-[#1E3F2D] text-[#F4F0E6] p-4 rounded-3xl shadow-md border border-[#152E20] flex items-center justify-between">
-            <div>
-              <div className="text-[10px] font-bold text-[#A5C0A0] uppercase tracking-wider mb-1">New to Nectar Roots?</div>
-              <div className="font-extrabold text-sm mb-1">🌟 3-Day Trial Kit</div>
-              <div className="text-[10px] text-white/80 w-4/5 leading-snug">Test our pure A2 milk & farm freshness before subscribing.</div>
-            </div>
-            <button type="button" onClick={() => { setCart([...cart, { id: 'trial-pack', name: '3-Day A2 Milk Trial Kit', price: 99, unit: 'Kit', icon: '🎁', quantity: 1 }]); showToast(`Trial Kit added!`); }} className="bg-white text-[#1E3F2D] font-extrabold text-xs px-3 py-2 rounded-xl shadow active:scale-95 shrink-0">@ ₹99 Only</button>
-          </div>
-
           <div className="relative w-full h-28 sm:h-32 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
             {banners.map((b, idx) => (
               <div key={idx} className={`absolute inset-0 w-full h-full p-4 transition-opacity duration-700 ease-in-out bg-gradient-to-br ${b.bg} text-[#F4F0E6] flex flex-col justify-center ${idx === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
@@ -861,29 +963,48 @@ export default function App() {
                                 Resumes on: {s.pause_end}
                               </div>
                             )}
+
+                            {Object.keys(s.modifications || {}).length > 0 && (
+                               <div className="mt-2 space-y-1">
+                                 {Object.entries(s.modifications).map(([d, q]: any) => (
+                                    <div key={d} className="text-[8px] font-bold text-[#B5651D] bg-[#F8F5EE] px-1.5 py-0.5 rounded inline-block mr-1 border border-[#EBE5D9]">{d}: {q} qty</div>
+                                 ))}
+                               </div>
+                            )}
                           </div>
                           
-                          {s.status === 'Paused' ? (
-                            <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-[#1E3F2D] text-white border-[#1E3F2D] shadow-sm">
-                              ▶ Resume
-                            </button>
-                          ) : (
-                            showVacationForm === s.id ? (
-                              <div className="flex flex-col gap-1.5 items-end">
-                                <input type="date" value={vacationStart} onChange={(e)=>setVacationStart(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
-                                <span className="text-[8px] font-bold text-[#796C61]">TO</span>
-                                <input type="date" value={vacationEnd} onChange={(e)=>setVacationEnd(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
+                          <div className="flex flex-col gap-1.5">
+                            {s.status === 'Paused' ? (
+                              <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-[#1E3F2D] text-white border-[#1E3F2D] shadow-sm">▶ Resume</button>
+                            ) : (
+                              showVacationForm === s.id ? (
+                                <div className="flex flex-col gap-1.5 items-end">
+                                  <input type="date" value={vacationStart} onChange={(e)=>setVacationStart(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
+                                  <span className="text-[8px] font-bold text-[#796C61]">TO</span>
+                                  <input type="date" value={vacationEnd} onChange={(e)=>setVacationEnd(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
+                                  <div className="flex gap-1 mt-1">
+                                    <button type="button" onClick={() => setShowVacationForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">Cancel</button>
+                                    <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[9px] bg-[#8B0000] text-white px-2 py-1 rounded font-bold">Confirm</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button type="button" onClick={() => setShowVacationForm(s.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]">⏸ Pause Subs</button>
+                              )
+                            )}
+
+                            {showModifyForm === s.id ? (
+                              <div className="flex flex-col gap-1.5 items-end mt-2 bg-white p-2 rounded border border-[#EBE5D9]">
+                                <input type="date" value={modifyDate} onChange={(e)=>setModifyDate(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
+                                <input type="number" placeholder="Qty (0 to skip)" value={modifyQty} onChange={(e)=>setModifyQty(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9] w-20" required/>
                                 <div className="flex gap-1 mt-1">
-                                  <button type="button" onClick={() => setShowVacationForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">Cancel</button>
-                                  <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[9px] bg-[#8B0000] text-white px-2 py-1 rounded font-bold">Confirm</button>
+                                  <button type="button" onClick={() => setShowModifyForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">X</button>
+                                  <button type="button" onClick={() => handleAddModification(s)} className="text-[9px] bg-[#1E3F2D] text-white px-2 py-1 rounded font-bold">Save</button>
                                 </div>
                               </div>
                             ) : (
-                              <button type="button" onClick={() => setShowVacationForm(s.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]">
-                                ⏸ Pause
-                              </button>
-                            )
-                          )}
+                              <button type="button" onClick={() => setShowModifyForm(s.id)} className="text-[9px] font-bold px-2 py-1 rounded border bg-[#F8F5EE] text-[#1E3F2D] border-[#EBE5D9] mt-1">📅 Edit specific day</button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -892,16 +1013,19 @@ export default function App() {
               </div>
 
               <div className="pt-2 border-t border-[#EBE5D9]">
-                <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2">Recent Store Orders</h4>
-                {transactions.filter(t => t.customer_name === currentCustomer?.name && t.item?.includes('Store Order')).length === 0 ? (
-                  <p className="text-[11px] text-[#796C61] font-medium text-center py-2 bg-white rounded-xl border border-[#EBE5D9]">No recent store orders.</p>
+                <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2">Recent Deliveries</h4>
+                {transactions.filter(t => t.customer_name === currentCustomer?.name && t.item?.includes('Delivery')).length === 0 ? (
+                  <p className="text-[11px] text-[#796C61] font-medium text-center py-2 bg-white rounded-xl border border-[#EBE5D9]">No recent deliveries.</p>
                 ) : (
                   <div className="space-y-2">
-                    {transactions.filter(t => t.customer_name === currentCustomer?.name && t.item?.includes('Store Order')).map((t, idx) => (
+                    {transactions.filter(t => t.customer_name === currentCustomer?.name && t.item?.includes('Delivery')).map((t, idx) => (
                        <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] text-xs flex justify-between items-center gap-3">
                          <div>
-                           <div className="font-bold text-[#2D241E] leading-snug line-clamp-1">{t.item.replace('Store Order: ', '')}</div>
-                           <div className="text-[9px] text-[#796C61] mt-0.5">{new Date(t.created_at).toLocaleDateString()}</div>
+                           <div className="font-bold text-[#2D241E] leading-snug line-clamp-1">{t.item.split(' [Agent:')[0]}</div>
+                           <div className="flex gap-2 items-center mt-1">
+                             <span className="text-[9px] text-[#796C61]">{new Date(t.created_at).toLocaleDateString()}</span>
+                             {t.proof_image && <button type="button" onClick={() => setViewProofModal(t.proof_image)} className="text-[9px] font-bold bg-[#F8F5EE] border border-[#EBE5D9] px-1.5 py-0.5 rounded">📸 Proof</button>}
+                           </div>
                          </div>
                          <div className="font-extrabold text-[#1E3F2D] shrink-0 bg-[#F8F5EE] px-2 py-1 rounded-md border border-[#EBE5D9]">
                            ₹{t.amount}
@@ -912,6 +1036,18 @@ export default function App() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {viewProofModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-white rounded-3xl p-3 max-w-sm w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-extrabold text-sm text-[#2D241E]">Delivery Proof 📸</h3>
+              <button type="button" onClick={() => setViewProofModal(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-[#F8F5EE] w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+            </div>
+            <img src={viewProofModal} alt="Proof" className="w-full rounded-2xl border border-[#EBE5D9]" />
           </div>
         </div>
       )}
@@ -985,7 +1121,10 @@ export default function App() {
                     <>
                       <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
                       <input type="tel" placeholder="Mobile" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                      <textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] h-16" required />
+                      <div className="relative">
+                         <textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 pb-8 bg-white rounded-xl border border-[#EBE5D9] h-16" required />
+                         <button type="button" onClick={captureLocation} className="absolute bottom-2 right-2 text-[9px] font-bold bg-[#F0EBE1] text-[#1E3F2D] px-2 py-1 rounded">📍 GPS</button>
+                      </div>
                       <input type="text" placeholder="Referral Code (Optional)" value={signupReferral} onChange={(e) => setSignupReferral(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] uppercase" />
                     </>
                   )}
@@ -1003,51 +1142,32 @@ export default function App() {
         </div>
       )}
 
-      {editingProduct && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3">
-              <h3 className="font-extrabold text-sm text-[#2D241E]">✏️ Edit Product</h3>
-              <button type="button" onClick={() => setEditingProduct(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
-            </div>
-            <form onSubmit={handleUpdateProduct} className="space-y-4">
-              <div>
-                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Product Name</label>
-                <input type="text" value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Price (₹)</label>
-                <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Category</label>
-                <select value={editingProduct.category} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]">
-                  <option value="Dairy">🥛 Dairy & Milk</option>
-                  <option value="Eggs">🥚 Farm Eggs</option>
-                  <option value="Ghee">🏺 Vedic Ghee</option>
-                  <option value="Farm">🌱 Organic Farm</option>
-                </select>
-              </div>
-              <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold transition shadow-md mt-2">Update Product ➔</button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {showCartModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border border-[#EBE5D9]">
             <div>
               <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9] mb-4"><h3 className="font-extrabold text-sm text-[#2D241E]">🛒 Cart</h3><button type="button" onClick={() => setShowCartModal(false)} className="text-[#796C61] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button></div>
               {cart.length === 0 ? (<div className="py-12 text-center space-y-4"><p className="text-sm font-bold text-[#796C61]">Your cart is empty!</p></div>) : (
-                <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
                   {cart.map((item) => (
-                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border border-[#EBE5D9] shadow-sm"><div className="flex items-center gap-3"><span className="text-2xl bg-[#F8F5EE] w-10 h-10 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{item.icon}</span><div><div className="font-bold text-xs text-[#2D241E]">{item.name}</div><div className="text-[11px] text-[#796C61] font-medium mt-0.5">₹{item.price} | <span className="font-extrabold text-[#B5651D]">₹{item.price * item.quantity}</span></div></div></div><div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold text-[#2D241E]">-</button><span className="text-xs font-extrabold text-[#2D241E] w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] rounded-lg font-bold text-[#F4F0E6]">+</button></div></div>
+                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border border-[#EBE5D9] shadow-sm"><div className="flex items-center gap-3"><span className="text-2xl bg-[#F8F5EE] w-10 h-10 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{item.icon}</span><div><div className="font-bold text-xs text-[#2D241E]">{item.name}</div><div className="text-[11px] text-[#796C61] font-medium mt-0.5">₹{item.price} | <span className="font-extrabold text-[#B5651D]">₹{item.price * item.quantity}</span></div></div></div><div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold text-[#2D241E]">-</button><span className="text-xs font-extrabold text-[#2D241E] w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div></div>
                   ))}
                 </div>
               )}
             </div>
-            {cart.length > 0 && (<div className="pt-4 border-t border-[#EBE5D9] mt-4 space-y-3"><div className="flex justify-between items-center text-xs font-bold text-[#796C61] uppercase"><span>Total</span><span className="text-[#1E3F2D] text-lg font-extrabold">₹{getCartTotal()}</span></div><button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Proceed ➔</button></div>)}
+            {cart.length > 0 && (
+              <div className="pt-4 border-t border-[#EBE5D9] mt-4 space-y-3">
+                <div className="flex gap-2">
+                  <input type="text" placeholder="Promo Code" value={promoInput} onChange={e=>setPromoInput(e.target.value)} className="w-full text-[10px] px-3 py-2 rounded-lg border border-[#EBE5D9] uppercase font-bold" />
+                  <button type="button" onClick={handleApplyPromo} className="text-[10px] bg-[#2C523D] text-white px-3 rounded-lg font-bold">Apply</button>
+                </div>
+                <div className="flex justify-between items-center text-xs font-bold text-[#796C61] uppercase">
+                  <span>Total {appliedDiscount > 0 && <span className="text-[#B5651D] lowercase">(Discount -₹{appliedDiscount})</span>}</span>
+                  <span className="text-[#1E3F2D] text-lg font-extrabold">₹{Math.max(0, getCartTotal() - appliedDiscount)}</span>
+                </div>
+                <button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Proceed ➔</button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1055,10 +1175,16 @@ export default function App() {
       {showScannerModal && selectedDelivery && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] text-center max-h-[95vh] overflow-y-auto">
-            <h3 className="font-extrabold text-sm text-[#2D241E] mb-2">Scan Customer QR</h3><p className="text-[10px] text-[#796C61] font-bold mb-4">For: {selectedDelivery.cust?.name}</p>
+            <h3 className="font-extrabold text-sm text-[#2D241E] mb-2">Scan & Deliver</h3><p className="text-[10px] text-[#796C61] font-bold mb-4">To: {selectedDelivery.cust?.name}</p>
             <div className="w-48 h-48 mx-auto bg-black rounded-2xl border-4 border-[#1E3F2D] border-dashed flex flex-col items-center justify-center mb-4 relative overflow-hidden"><div className="w-full h-1 bg-red-500/60 absolute top-1/2 animate-pulse shadow-[0_0_10px_red]"></div></div>
+            
+            <div className="mb-4">
+              <label className="block text-[10px] font-bold text-[#796C61] mb-1.5 uppercase">📸 Upload Proof of Delivery (Optional)</label>
+              <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="text-[9px] w-full bg-white p-2 rounded-xl border border-[#EBE5D9]" />
+            </div>
+
             {Number(selectedDelivery.cust?.pending_bottles) > 0 && (<div className="bg-white p-2 rounded-xl border border-[#EBE5D9] mb-4 text-[10px] font-extrabold text-[#B5651D] shadow-sm">🍾 Do not forget to collect {selectedDelivery.cust.pending_bottles} Empty Bottles!</div>)}
-            <button type="button" onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold">Simulate Scan ✅</button>
+            <button type="button" onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold">Simulate Delivery ✅</button>
             <button type="button" onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#796C61] py-3 rounded-xl text-xs font-bold mt-2">Cancel</button>
           </div>
         </div>
