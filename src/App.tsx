@@ -474,7 +474,6 @@ export default function App() {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
   };
 
-  // 🗺️ GOOGLE MAPS AUTO-ROUTING FUNCTION
   const openGoogleMapsRoute = () => {
     if (!agentLocation) return showToast('Please Sort by Nearest first to get your location!', 'error');
     
@@ -500,7 +499,6 @@ export default function App() {
     window.open(url, '_blank');
   };
 
-  // 🔥 STREAK CALCULATOR
   const calculateStreak = () => {
     if (!currentCustomer) return 0;
     const custTx = transactions.filter(t => t.customer_name === currentCustomer.name && t.item?.includes('Delivery'));
@@ -514,7 +512,7 @@ export default function App() {
     const yesterdayObj = new Date(); yesterdayObj.setDate(yesterdayObj.getDate() - 1);
     const yesterday = yesterdayObj.toISOString().split('T')[0];
 
-    if (dates[0] !== today && dates[0] !== yesterday) return 0; // Streak broken
+    if (dates[0] !== today && dates[0] !== yesterday) return 0; 
 
     let currentDate = new Date(dates[0]);
     for (let i = 1; i < dates.length; i++) {
@@ -917,11 +915,11 @@ export default function App() {
           </div>
 
           <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
-            <div className="w-16 h-16 bg-[#F8F5EE] rounded-full flex items-center justify-center text-3xl border border-[#EBE5D9] shrink-0">🐄</div>
+            <div className="w-16 h-16 bg-[#F8F5EE] rounded-full flex items-center justify-center text-3xl border border-[#EBE5D9] shrink-0">🏡</div>
             <div>
               <h3 className="font-extrabold text-sm text-[#1E3F2D] mb-1">Our Farm & Process 🌿</h3>
               <p className="text-[10px] text-[#796C61] leading-relaxed font-medium">
-                At <strong className="text-[#2D241E]">Nectar Roots</strong>, we bring you 100% pure, unadulterated A2 milk straight from our free-grazing farms in Rohtak. Delivered fresh in eco-friendly glass bottles before 7 AM.
+                At <strong className="text-[#2D241E]">Nectar Roots</strong>, we deliver nature's best straight to your doorstep. Experience 100% pure A2 Cow & Goat Milk, Vedic Ghee, Free-Range Eggs, and Organic Vermicompost. Zero chemicals, fresh daily!
               </p>
             </div>
           </div>
@@ -1020,16 +1018,20 @@ export default function App() {
               <button type="button" onClick={() => setShowOrdersModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
             <div className="space-y-3">
-               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
-                  <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
-                    <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
-                    {s.status === 'Paused' ? (
-                       <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
-                    ) : (
-                       <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
-                    )}
-                  </div>
-               ))}
+               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
+                 <div className="text-center py-6 text-[10px] text-[#796C61]">No active orders.</div>
+               ) : (
+                 subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
+                    <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
+                      <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
+                      {s.status === 'Paused' ? (
+                         <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
+                      ) : (
+                         <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
+                      )}
+                    </div>
+                 ))
+               )}
             </div>
           </div>
         </div>
@@ -1122,12 +1124,16 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border">
             <div>
               <div className="flex justify-between items-center pb-3 border-b mb-4"><h3 className="font-extrabold text-sm">🛒 Cart</h3><button type="button" onClick={() => setShowCartModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button></div>
-              {cart.map((item) => (
-                <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border shadow-sm mb-2">
-                  <div className="font-bold text-xs">{item.name}</div>
-                  <div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold">-</button><span className="text-xs font-extrabold w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
+              {cart.length === 0 ? (<div className="py-12 text-center space-y-4"><p className="text-sm font-bold text-[#796C61]">Your cart is empty!</p></div>) : (
+                <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
+                  {cart.map((item) => (
+                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border shadow-sm mb-2">
+                      <div className="font-bold text-xs">{item.name}</div>
+                      <div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold">-</button><span className="text-xs font-extrabold w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
             {cart.length > 0 && (<button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs mt-4">Proceed ➔</button>)}
           </div>
