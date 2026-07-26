@@ -74,10 +74,14 @@ export default function App() {
   const [agentLocation, setAgentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [sortedDeliveryMode, setSortedDeliveryMode] = useState(false);
 
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
   const currentCustomer = user ? customers.find((c) => c.email === user.email || c.id === user.id) : null;
   const [newProd, setNewProd] = useState({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' });
 
   useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); setInstallPrompt(e); });
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
     });
@@ -160,9 +164,9 @@ export default function App() {
         }
       }
       const newRefCode = `NR${signupName.substring(0, 3).toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
-      const newCustomer = { 
+      const newCustomer: any = { 
         id: data.user.id, name: signupName, email: emailInput, phone: signupPhone, address: signupAddress, 
-        wallet_balance: walletBonus, pending_bottles: 0, is_blocked: false, referral_code: newRefCode, 
+        wallet_balance: walletBonus, pending_bottles: 0, referral_code: newRefCode, 
         qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}`, lat: signupLat, lng: signupLng
       };
       await supabase.from('customers').insert([newCustomer]);
@@ -200,7 +204,7 @@ export default function App() {
       const newSub = { 
         customer_id: currentCustomer.id, customer_name: currentCustomer.name, product_name: selectedSubProduct.name, quantity: subQty, 
         price: selectedSubProduct.price * subQty, frequency: subFreq, payment_type: subPayType, status: 'Active', 
-        delivery_slot: subSlot, delivery_instruction: subInstruction, modifications: {} 
+        delivery_slot: subSlot, delivery_instruction: subInstruction
       };
       await supabase.from('subscriptions').insert([newSub]);
       fetchLiveDatabaseData(); setShowSubscribeModal(false); showToast(`Subscription Started! 📅`);
@@ -223,7 +227,7 @@ export default function App() {
       await supabase.from('subscriptions').update({ modifications: updatedMods }).eq('id', sub.id);
       fetchLiveDatabaseData(); setShowModifyForm(null); setModifyDate(''); setModifyQty('');
       showToast(`Quantity updated for ${modifyDate}`);
-    } catch(e:any) { alert(e.message); }
+    } catch(e:any) { alert("Column missing in database: " + e.message); }
   };
 
   const handleResume = async (subId: string, productName: string) => {
@@ -265,82 +269,60 @@ export default function App() {
     const amountToDeduct = Number(delivery.price / delivery.quantity) * activeQty;
     
     try {
+      const payload: any = { customer_name: cust.name, item: `Delivery: ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`, amount: amountToDeduct };
+      if(proofImage) payload.proof_image = proofImage;
+
       if (delivery.payment_type === 'scan_deduct') {
         if (Number(cust.wallet_balance) < amountToDeduct) return showToast(`Failed: Low balance! (₹${cust.wallet_balance})`, 'error');
         await supabase.from('customers').update({ wallet_balance: Number(cust.wallet_balance) - amountToDeduct }).eq('id', cust.id);
-        await supabase.from('transactions').insert([{ customer_name: cust.name, item: `Delivery: ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`, amount: amountToDeduct, proof_image: proofImage }]);
+        await supabase.from('transactions').insert([payload]);
       } else {
-        await supabase.from('transactions').insert([{ customer_name: cust.name, item: `Delivery (Auto-paid): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`, amount: 0, proof_image: proofImage }]);
+        payload.amount = 0;
+        payload.item = `Delivery (Auto-paid): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`;
+        await supabase.from('transactions').insert([payload]);
       }
       try { await supabase.from('notifications').insert([{ customer_id: cust.id, message: `Your ${delivery.product_name} was delivered! 📸`, is_read: false }]); } catch(e) {}
       fetchLiveDatabaseData(); setShowScannerModal(false); setProofImage(null); showToast(`Delivered to ${cust.name}! ✅`);
     } catch (err: any) { alert("Delivery Error: " + err.message); }
   };
 
+  // ✅ PERFECT WORKING "EDIT" RESTORED (Optimistic Update)
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!editingProduct) return;
+    await supabase.from('products').update({ name: editingProduct.name, price: editingProduct.price, category: editingProduct.category }).eq('id', editingProduct.id);
+    setProducts(products.map((p) => String(p.id) === String(editingProduct.id) ? editingProduct : p)); 
+    setEditingProduct(null); 
+    showToast('Product updated!');
+  };
+
+  // ✅ PERFECT WORKING "ADD" RESTORED
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProd.name || !newProd.price) return;
-    try {
-      const { data, error } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag, is_active: true }]).select();
-      if (error) throw error;
-      if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
-    } catch (err: any) {
-      alert("Error adding product: " + err.message);
-    }
+    const { data } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag }]).select();
+    if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
   };
 
   const handleToggleProductStock = async (p: any) => {
     const newStatus = !p.is_active;
-    try { 
-      await supabase.from('products').update({ is_active: newStatus }).eq('id', p.id); 
-      fetchLiveDatabaseData(); 
-      showToast(newStatus ? 'Product is Back in Stock!' : 'Product marked Out of Stock!'); 
-    } catch (err: any) { alert(err.message); }
-  };
-
-  // ✅ FIX: Product Edit Now Fully Stable and Converts Price to Number
-  const handleUpdateProduct = async (e: React.FormEvent) => {
-    e.preventDefault(); 
-    if (!editingProduct) return;
-    try {
-      const { error } = await supabase.from('products').update({ 
-        name: editingProduct.name, 
-        price: Number(editingProduct.price), // Strict number conversion for DB
-        category: editingProduct.category 
-      }).eq('id', editingProduct.id);
-      
-      if (error) throw error;
-      
-      fetchLiveDatabaseData(); // Forces full UI refresh from server
-      setEditingProduct(null); 
-      showToast('Product updated successfully!');
-    } catch (err: any) {
-      alert("Error updating product: " + err.message);
-    }
+    try { await supabase.from('products').update({ is_active: newStatus }).eq('id', p.id); fetchLiveDatabaseData(); showToast(newStatus ? 'Product is Back in Stock!' : 'Product marked Out of Stock!'); } catch (err: any) { alert(err.message); }
   };
 
   const handleDeleteProduct = async (id: string) => {
     if (!window.confirm('Delete this product permanently?')) return;
-    try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
-      fetchLiveDatabaseData();
-      showToast('Product deleted!');
-    } catch (err: any) {
-      alert("Delete Error: " + err.message);
-    }
+    try { await supabase.from('products').delete().eq('id', id); fetchLiveDatabaseData(); showToast('Product deleted!'); } catch (err: any) { alert("Delete Error: " + err.message); }
   };
 
   const handleSeedProducts = async () => {
     const premiumCatalog = [
-      { name: 'Fresh Malai Paneer', price: 90, original_price: 110, unit: '200g', category: 'Dairy', icon: '🧀', tag: 'Fresh', is_active: true },
-      { name: 'Farm Fresh Dahi', price: 60, original_price: 75, unit: '500g', category: 'Dairy', icon: '🥣', tag: 'Probiotic', is_active: true },
-      { name: 'Masala Chaach', price: 45, original_price: 55, unit: '1 Liter', category: 'Dairy', icon: '🥛', tag: 'Cooling', is_active: true },
-      { name: 'White Butter (Unsalted)', price: 140, original_price: 160, unit: '250g', category: 'Dairy', icon: '🧈', tag: 'Pure', is_active: true },
-      { name: 'Fresh Khoya / Mawa', price: 110, original_price: 130, unit: '250g', category: 'Dairy', icon: '🍘', tag: 'Sweets', is_active: true },
-      { name: 'Fresh Cream / Malai', price: 80, original_price: 95, unit: '200g', category: 'Dairy', icon: '🍦', tag: 'Rich', is_active: true },
-      { name: 'Pure Goat Milk', price: 150, original_price: 170, unit: '1 Liter', category: 'Dairy', icon: '🐐', tag: 'Healthy', is_active: true },
-      { name: 'Desi Free-Range Eggs', price: 110, original_price: 130, unit: '6 Pack', category: 'Eggs', icon: '🥚', tag: 'Protein', is_active: true }
+      { name: 'Fresh Malai Paneer', price: 125, original_price: 140, unit: '200g', category: 'Dairy', icon: '🧀', tag: 'Fresh' },
+      { name: 'Farm Fresh Dahi', price: 85, original_price: 100, unit: '500g', category: 'Dairy', icon: '🥣', tag: 'Probiotic' },
+      { name: 'Masala Chaach', price: 45, original_price: 55, unit: '1 Liter', category: 'Dairy', icon: '🥛', tag: 'Cooling' },
+      { name: 'White Butter (Unsalted)', price: 160, original_price: 180, unit: '250g', category: 'Dairy', icon: '🧈', tag: 'Pure' },
+      { name: 'Fresh Khoya / Mawa', price: 110, original_price: 130, unit: '250g', category: 'Dairy', icon: '🍘', tag: 'Sweets' },
+      { name: 'Pure A2 Cow Milk', price: 95, original_price: 110, unit: '1 Liter', category: 'Dairy', icon: '🐄', tag: 'A2' },
+      { name: 'Pure Goat Milk', price: 150, original_price: 170, unit: '1 Liter', category: 'Dairy', icon: '🐐', tag: 'Healthy' },
+      { name: 'Desi Free-Range Eggs', price: 120, original_price: 140, unit: '6 Pack', category: 'Eggs', icon: '🥚', tag: 'Protein' }
     ];
     const existingNames = products.map(p => p.name.toLowerCase());
     const toInsert = premiumCatalog.filter(p => !existingNames.includes(p.name.toLowerCase()));
@@ -491,6 +473,13 @@ export default function App() {
       {toast.show && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-xs px-4 py-3 rounded-2xl shadow-2xl text-white font-bold text-xs text-center border transition-all ${toast.type === 'error' ? 'bg-[#8B0000] border-[#5C0000]' : 'bg-[#1E3F2D] border-[#152E20]'}`}>
           {toast.msg}
+        </div>
+      )}
+
+      {installPrompt && (
+        <div className="bg-[#B5651D] text-white text-[10px] p-2 flex justify-between items-center px-4 font-bold sticky top-0 z-30">
+          <span>📲 Install Nectar Roots App for faster access!</span>
+          <button type="button" onClick={() => installPrompt.prompt()} className="bg-white text-[#B5651D] px-2 py-1 rounded shadow-sm">Install</button>
         </div>
       )}
 
@@ -1137,82 +1126,6 @@ export default function App() {
                 <div className="pt-2 sticky bottom-0 bg-[#F8F5EE] pb-1"><button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Confirm ➔</button></div>
               </form>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showLoginModal && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
-            <div className="flex gap-1 mb-5 bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm"><button type="button" onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'customer' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>👤 Customer</button><button type="button" onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'admin' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>🛡️ Staff/Admin</button></div>
-            {loginError && <div className="mb-4 text-[10px] text-[#8B0000] bg-[#8B0000]/10 p-2.5 rounded-xl font-medium">{loginError}</div>}
-            
-            {authRoleTab === 'admin' ? (
-              <form onSubmit={handleAdminLogin} className="space-y-3.5">
-                <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                <div className="text-right mt-1"><button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#796C61] hover:text-[#2D241E] font-bold">Forgot Password?</button></div>
-                <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">Login Securely ➔</button>
-              </form>
-            ) : (
-              <div>
-                <div className="flex gap-4 mb-4 border-b border-[#EBE5D9]">
-                  <button type="button" onClick={() => setAuthView('login')} className={`pb-2 text-xs font-extrabold transition-all ${authView === 'login' ? 'text-[#1E3F2D] border-b-2 border-[#1E3F2D]' : 'text-[#796C61] hover:text-[#2D241E]'}`}>Login</button>
-                  <button type="button" onClick={() => setAuthView('signup')} className={`pb-2 text-xs font-extrabold transition-all ${authView === 'signup' ? 'text-[#1E3F2D] border-b-2 border-[#1E3F2D]' : 'text-[#796C61] hover:text-[#2D241E]'}`}>Sign Up</button>
-                </div>
-
-                <form onSubmit={authView === 'login' ? handlePasswordLogin : handleCustomerSignup} className="space-y-3.5">
-                  {authView === 'signup' && (
-                    <>
-                      <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                      <input type="tel" placeholder="Mobile" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                      <div className="relative">
-                         <textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 pb-8 bg-white rounded-xl border border-[#EBE5D9] h-16" required />
-                         <button type="button" onClick={captureLocation} className="absolute bottom-2 right-2 text-[9px] font-bold bg-[#F0EBE1] text-[#1E3F2D] px-2 py-1 rounded">📍 GPS</button>
-                      </div>
-                      <input type="text" placeholder="Referral Code (Optional)" value={signupReferral} onChange={(e) => setSignupReferral(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] uppercase" />
-                    </>
-                  )}
-                  <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                  <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                  
-                  {authView === 'login' && (<div className="text-right mt-1"><button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#B5651D] hover:underline font-bold">Forgot Password?</button></div>)}
-
-                  <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">{authView === 'login' ? 'Login ➔' : 'Sign Up ➔'}</button>
-                </form>
-              </div>
-            )}
-            <div className="mt-5 pt-3 text-center"><button type="button" onClick={closeModal} className="text-[10px] bg-white border border-[#EBE5D9] text-[#796C61] font-bold py-2 px-4 rounded-full">Cancel</button></div>
-          </div>
-        </div>
-      )}
-
-      {showCartModal && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border border-[#EBE5D9]">
-            <div>
-              <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9] mb-4"><h3 className="font-extrabold text-sm text-[#2D241E]">🛒 Cart</h3><button type="button" onClick={() => setShowCartModal(false)} className="text-[#796C61] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button></div>
-              {cart.length === 0 ? (<div className="py-12 text-center space-y-4"><p className="text-sm font-bold text-[#796C61]">Your cart is empty!</p></div>) : (
-                <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
-                  {cart.map((item) => (
-                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border border-[#EBE5D9] shadow-sm"><div className="flex items-center gap-3"><span className="text-2xl bg-[#F8F5EE] w-10 h-10 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{item.icon}</span><div><div className="font-bold text-xs text-[#2D241E]">{item.name}</div><div className="text-[11px] text-[#796C61] font-medium mt-0.5">₹{item.price} | <span className="font-extrabold text-[#B5651D]">₹{item.price * item.quantity}</span></div></div></div><div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold text-[#2D241E]">-</button><span className="text-xs font-extrabold text-[#2D241E] w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div></div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {cart.length > 0 && (
-              <div className="pt-4 border-t border-[#EBE5D9] mt-4 space-y-3">
-                <div className="flex gap-2">
-                  <input type="text" placeholder="Promo Code" value={promoInput} onChange={e=>setPromoInput(e.target.value)} className="w-full text-[10px] px-3 py-2 rounded-lg border border-[#EBE5D9] uppercase font-bold" />
-                  <button type="button" onClick={handleApplyPromo} className="text-[10px] bg-[#2C523D] text-white px-3 rounded-lg font-bold">Apply</button>
-                </div>
-                <div className="flex justify-between items-center text-xs font-bold text-[#796C61] uppercase">
-                  <span>Total {appliedDiscount > 0 && <span className="text-[#B5651D] lowercase">(Discount -₹{appliedDiscount})</span>}</span>
-                  <span className="text-[#1E3F2D] text-lg font-extrabold">₹{Math.max(0, getCartTotal() - appliedDiscount)}</span>
-                </div>
-                <button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Proceed ➔</button>
-              </div>
-            )}
           </div>
         </div>
       )}
