@@ -12,6 +12,7 @@ export default function App() {
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   
   const [cart, setCart] = useState<any[]>(() => JSON.parse(localStorage.getItem('nr_cart') || '[]'));
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -23,6 +24,7 @@ export default function App() {
   const [showWalletModal, setShowWalletModal] = useState(false); 
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false); 
+  const [showNotifModal, setShowNotifModal] = useState(false);
   const [viewProduct, setViewProduct] = useState<any>(null); 
   
   const [selectedDelivery, setSelectedDelivery] = useState<any>(null); 
@@ -35,6 +37,8 @@ export default function App() {
   const [subQty, setSubQty] = useState(1);
   const [subFreq, setSubFreq] = useState<'Daily' | 'Alternate Days'>('Daily');
   const [subPayType, setSubPayType] = useState<'auto_deduct' | 'scan_deduct'>('scan_deduct');
+  const [subSlot, setSubSlot] = useState<'Morning (5-7 AM)' | 'Evening (5-7 PM)'>('Morning (5-7 AM)');
+  const [subInstruction, setSubInstruction] = useState<'Leave in Bag 🔕' | 'Ring Bell 🔔'>('Leave in Bag 🔕');
 
   const [authRoleTab, setAuthRoleTab] = useState<'customer' | 'admin'>('customer');
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
@@ -44,6 +48,7 @@ export default function App() {
   const [signupName, setSignupName] = useState('');
   const [signupPhone, setSignupPhone] = useState('');
   const [signupAddress, setSignupAddress] = useState('');
+  const [signupReferral, setSignupReferral] = useState('');
   const [loginError, setLoginError] = useState('');
   const [toast, setToast] = useState({ show: false, msg: '', type: '' });
 
@@ -87,12 +92,21 @@ export default function App() {
     try {
       const { data: prodData } = await supabase.from('products').select('*');
       if (prodData) setProducts(prodData.map((p) => ({ ...p, id: String(p.id) })));
+      
       const { data: custData } = await supabase.from('customers').select('*');
       if (custData) setCustomers(custData.map((c) => ({ ...c, id: String(c.id), walletBalance: Number(c.wallet_balance ?? 0), pending_bottles: Number(c.pending_bottles ?? 0) })));
+      
       const { data: txData } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
       if (txData) setTransactions(txData);
+      
       const { data: subData } = await supabase.from('subscriptions').select('*');
       if (subData) setSubscriptions(subData);
+
+      try {
+        const { data: notifData } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+        if (notifData) setNotifications(notifData);
+      } catch (e) { console.log('Notifications table not ready yet.'); }
+
     } catch (err) { console.error('Live Sync Error:', err); }
   };
 
@@ -118,12 +132,28 @@ export default function App() {
 
   const handleCustomerSignup = async (e: React.FormEvent) => {
     e.preventDefault(); setLoginError('');
-    if (!signupName || !signupPhone || !signupAddress || !emailInput || !passwordInput) return setLoginError('Fill all fields.');
+    if (!signupName || !signupPhone || !signupAddress || !emailInput || !passwordInput) return setLoginError('Fill all required fields.');
     const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput });
     if (error) setLoginError(error.message);
     else if (data.user) {
-      const newCustomer = { id: data.user.id, name: signupName, email: emailInput, phone: signupPhone, address: signupAddress, wallet_balance: 0, pending_bottles: 0, qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}` };
+      let walletBonus = 0;
+      let refCodeUsed = false;
+      if (signupReferral) {
+        const referrer = customers.find(c => c.referral_code === signupReferral.toUpperCase());
+        if (referrer) {
+          walletBonus = 100; refCodeUsed = true;
+          await supabase.from('customers').update({ wallet_balance: Number(referrer.wallet_balance || 0) + 100 }).eq('id', referrer.id);
+          await supabase.from('transactions').insert([{ customer_name: referrer.name, item: `Referral Bonus (Joined: ${signupName}) 🎉`, amount: 100 }]);
+        }
+      }
+      
+      const newRefCode = `NR${signupName.substring(0, 3).toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
+      const newCustomer = { id: data.user.id, name: signupName, email: emailInput, phone: signupPhone, address: signupAddress, wallet_balance: walletBonus, pending_bottles: 0, referral_code: newRefCode, qrCode: `NR-${Math.floor(1000 + Math.random() * 9000)}` };
       await supabase.from('customers').insert([newCustomer]);
+      if (refCodeUsed) {
+        await supabase.from('transactions').insert([{ customer_name: signupName, item: `Welcome Referral Bonus 🎁`, amount: 100 }]);
+      }
+      
       fetchLiveDatabaseData(); showToast('Account Created! 🎉'); closeModal();
     }
   };
@@ -144,7 +174,7 @@ export default function App() {
 
   const closeModal = () => {
     setShowLoginModal(false); setAuthView('login'); setAuthRoleTab('customer');
-    setEmailInput(''); setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setLoginError('');
+    setEmailInput(''); setPasswordInput(''); setSignupName(''); setSignupPhone(''); setSignupAddress(''); setSignupReferral(''); setLoginError('');
   };
 
   const handleCreateSubscription = async (e: React.FormEvent) => {
@@ -152,33 +182,29 @@ export default function App() {
     if (!user || role === 'guest') { setShowSubscribeModal(false); setShowLoginModal(true); return showToast('Please login!', 'error'); }
     if (!selectedSubProduct || !currentCustomer) return;
     try {
-      const newSub = { customer_id: currentCustomer.id, customer_name: currentCustomer.name, product_name: selectedSubProduct.name, quantity: subQty, price: selectedSubProduct.price * subQty, frequency: subFreq, payment_type: subPayType, status: 'Active' };
+      const newSub = { 
+        customer_id: currentCustomer.id, customer_name: currentCustomer.name, product_name: selectedSubProduct.name, quantity: subQty, 
+        price: selectedSubProduct.price * subQty, frequency: subFreq, payment_type: subPayType, status: 'Active',
+        delivery_slot: subSlot, delivery_instruction: subInstruction
+      };
       await supabase.from('subscriptions').insert([newSub]);
       fetchLiveDatabaseData(); setShowSubscribeModal(false); showToast(`Subscription Started! 📅`);
-      sendEmailAlert(`📅 New Subscription: ${currentCustomer.name}`, `${currentCustomer.name} subscribed to ${selectedSubProduct.name}.`);
+      sendEmailAlert(`📅 New Subscription: ${currentCustomer.name}`, `${currentCustomer.name} subscribed to ${selectedSubProduct.name}. Shift: ${subSlot}`);
     } catch (err: any) { alert("Error: " + err.message); }
   };
 
   const handleConfirmPause = async (subId: string, productName: string) => {
     if(!vacationStart || !vacationEnd) return showToast('Please select both dates', 'error');
     try {
-      const { error } = await supabase.from('subscriptions').update({ 
-        status: 'Paused', 
-        pause_start: vacationStart, 
-        pause_end: vacationEnd 
-      }).eq('id', subId);
+      const { error } = await supabase.from('subscriptions').update({ status: 'Paused', pause_start: vacationStart, pause_end: vacationEnd }).eq('id', subId);
       if (error) throw error;
-      fetchLiveDatabaseData(); setShowVacationForm(null);
-      showToast(`Vacation set for ${productName} 🌴`);
-      sendEmailAlert(`⏸️ Delivery Paused by ${currentCustomer?.name}`, `${currentCustomer?.name} paused ${productName} from ${vacationStart} to ${vacationEnd}.`);
+      fetchLiveDatabaseData(); setShowVacationForm(null); showToast(`Vacation set for ${productName} 🌴`);
     } catch (err: any) { alert('Pause Error: ' + err.message); }
   };
 
   const handleResume = async (subId: string, productName: string) => {
     try {
-      const { error } = await supabase.from('subscriptions').update({ 
-        status: 'Active', pause_start: null, pause_end: null 
-      }).eq('id', subId);
+      const { error } = await supabase.from('subscriptions').update({ status: 'Active', pause_start: null, pause_end: null }).eq('id', subId);
       if (error) throw error;
       fetchLiveDatabaseData(); showToast(`Delivery Resumed for ${productName} 🚀`);
     } catch (err: any) { alert('Resume Error: ' + err.message); }
@@ -186,10 +212,7 @@ export default function App() {
 
   const handleUpdateBottles = async (custId: string, current: number, delta: number) => {
     const newVal = Math.max(0, current + delta);
-    try {
-      await supabase.from('customers').update({ pending_bottles: newVal }).eq('id', custId);
-      fetchLiveDatabaseData();
-    } catch (err: any) { alert("Bottle Update Error: " + err.message); }
+    try { await supabase.from('customers').update({ pending_bottles: newVal }).eq('id', custId); fetchLiveDatabaseData(); } catch (err: any) { alert("Bottle Update Error: " + err.message); }
   };
 
   const handleMarkDelivered = async (delivery: any) => {
@@ -204,6 +227,11 @@ export default function App() {
       } else {
         await supabase.from('transactions').insert([{ customer_name: cust.name, item: `Delivery (Auto-paid): ${delivery.product_name} [Agent: ${user.email}]`, amount: 0 }]);
       }
+      
+      try {
+        await supabase.from('notifications').insert([{ customer_id: cust.id, message: `Your pure ${delivery.product_name} has been delivered successfully! 🥛`, is_read: false }]);
+      } catch(e) {}
+
       fetchLiveDatabaseData(); setShowScannerModal(false); showToast(`Delivered to ${cust.name}! ✅`);
     } catch (err: any) { alert("Delivery Error: " + err.message); }
   };
@@ -233,15 +261,8 @@ export default function App() {
     
     if (toInsert.length > 0) {
       const { error } = await supabase.from('products').insert(toInsert);
-      if (error) {
-        showToast(error.message, 'error');
-      } else {
-        fetchLiveDatabaseData();
-        showToast(`${toInsert.length} Premium Products Added! 🚀`);
-      }
-    } else {
-      showToast('Catalog already up to date! ✅');
-    }
+      if (error) { showToast(error.message, 'error'); } else { fetchLiveDatabaseData(); showToast(`${toInsert.length} Premium Products Added! 🚀`); }
+    } else { showToast('Catalog already up to date! ✅'); }
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
@@ -260,6 +281,11 @@ export default function App() {
     if (existingIndex > -1) { const updatedCart = [...cart]; updatedCart[existingIndex].quantity += 1; setCart(updatedCart); } 
     else setCart([...cart, { id: String(product.id), name: product.name, price: Number(product.price), unit: product.unit || 'Unit', icon: product.icon || '🌿', quantity: 1 }]);
     showToast(`Added ${product.name}`);
+  };
+
+  const handleAddTrialPack = () => {
+    setCart([...cart, { id: 'trial-pack', name: '3-Day A2 Milk Trial Kit', price: 99, unit: 'Kit', icon: '🎁', quantity: 1 }]);
+    showToast(`Trial Kit added to cart!`);
   };
 
   const handleUpdateCartQuantity = (id: any, delta: number) => setCart(cart.map((item) => String(item.id) === String(id) ? { ...item, quantity: item.quantity + delta > 0 ? item.quantity + delta : 0 } : item).filter(i => i.quantity > 0) as any);
@@ -293,12 +319,26 @@ export default function App() {
     } catch (e: any) { alert('Recharge failed: ' + e.message); }
   };
 
+  const markNotificationsRead = async () => {
+    setShowNotifModal(true);
+    const unread = notifications.filter(n => n.customer_id === currentCustomer?.id && !n.is_read);
+    if(unread.length > 0) {
+      try {
+        await supabase.from('notifications').update({ is_read: true }).eq('customer_id', currentCustomer?.id);
+        fetchLiveDatabaseData();
+      } catch(e) {}
+    }
+  };
+
   const agentTransactions = transactions.filter(t => t.item?.includes(`[Agent: ${user?.email}]`));
   const agentTotalCollected = agentTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   const totalRecharges = transactions.filter((t) => t.item?.includes('Recharge')).reduce((sum, t) => sum + (t.amount || 0), 0);
   const totalSales = totalRevenue - totalRecharges;
   const filteredProducts = selectedCategory === 'All' ? products : products.filter((p) => (p.category || '').toLowerCase() === selectedCategory.toLowerCase());
+  
+  const userNotifications = notifications.filter(n => n.customer_id === currentCustomer?.id);
+  const unreadCount = userNotifications.filter(n => !n.is_read).length;
 
   const banners = [
     { title: "Pure A2 Milk & Farm Produce", sub: "Straight from soil to your soul. 🌾", bg: "from-[#1E3F2D] to-[#2C523D]", icon: "🏺" },
@@ -337,6 +377,11 @@ export default function App() {
 
           {user && role === 'customer' && (
             <div className="flex items-center gap-1.5">
+              <div className="relative">
+                <button onClick={markNotificationsRead} className="bg-[#F8F5EE]/10 border border-[#F8F5EE]/20 text-[#F4F0E6] w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95">🔔</button>
+                {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[#1E3F2D] animate-bounce">{unreadCount}</span>}
+              </div>
+
               {(currentCustomer?.wallet_balance || 0) < 200 && (
                 <span className="text-[10px] bg-[#8B0000] text-white px-2 py-1 rounded-lg font-extrabold animate-pulse hidden sm:inline-block border border-[#5C0000]">Low Bal</span>
               )}
@@ -486,6 +531,13 @@ export default function App() {
                     </div>
                     
                     <div className="text-[10px] font-medium text-[#796C61] mt-0.5 mb-2 leading-snug">📍 {cust?.address || 'Address not available'}</div>
+                    
+                    {/* Delivery Preferences Info For Agent */}
+                    <div className="flex gap-2 mb-2">
+                      <span className="text-[9px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-2 py-1 rounded">{sub.delivery_slot || 'Morning (5-7 AM)'}</span>
+                      <span className="text-[9px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-2 py-1 rounded">{sub.delivery_instruction || 'Leave in Bag 🔕'}</span>
+                    </div>
+
                     <div className="flex justify-between items-center bg-[#F8F5EE] p-2.5 rounded-xl mb-3 border border-[#EBE5D9]"><div className="text-xs font-bold text-[#1E3F2D]"><span>🥛</span> {sub.product_name}</div><div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">{sub.quantity} qty</div></div>
                     <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Scan & Deliver</button></div>
                   </div>
@@ -510,6 +562,16 @@ export default function App() {
 
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
+          
+          <div className="bg-[#1E3F2D] text-[#F4F0E6] p-4 rounded-3xl shadow-md border border-[#152E20] flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-bold text-[#A5C0A0] uppercase tracking-wider mb-1">New to Nectar Roots?</div>
+              <div className="font-extrabold text-sm mb-1">🌟 3-Day Trial Kit</div>
+              <div className="text-[10px] text-white/80 w-4/5 leading-snug">Test our pure A2 milk & farm freshness before subscribing.</div>
+            </div>
+            <button onClick={handleAddTrialPack} className="bg-white text-[#1E3F2D] font-extrabold text-xs px-3 py-2 rounded-xl shadow active:scale-95 shrink-0">@ ₹99 Only</button>
+          </div>
+
           <div className="relative w-full h-28 sm:h-32 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
             {banners.map((b, idx) => (
               <div
@@ -561,6 +623,29 @@ export default function App() {
         </main>
       )}
 
+      {showNotifModal && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
+              <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🔔 Notifications</span></h3>
+              <button onClick={() => setShowNotifModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+            </div>
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+              {userNotifications.length === 0 ? (
+                <p className="text-[11px] text-[#796C61] font-medium text-center py-8">No notifications yet.</p>
+              ) : (
+                userNotifications.map((n, i) => (
+                  <div key={i} className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] shadow-sm">
+                    <div className="text-xs font-bold text-[#2D241E] leading-snug">{n.message}</div>
+                    <div className="text-[9px] text-[#796C61] mt-1.5">{new Date(n.created_at).toLocaleDateString()} | {new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showWalletModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
@@ -584,6 +669,23 @@ export default function App() {
               <div className="absolute -right-4 -bottom-4 text-6xl opacity-10">💳</div>
             </div>
 
+            {/* Refer & Earn UI inside Wallet */}
+            {currentCustomer?.referral_code && (
+              <div className="bg-gradient-to-r from-[#B5651D] to-[#965216] p-4 rounded-2xl shadow-md text-white border border-[#965216]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">🎁</span>
+                  <div>
+                    <div className="font-extrabold text-xs">Refer & Earn ₹100</div>
+                    <div className="text-[9px] text-white/80">Get ₹100 when a friend signs up with your code.</div>
+                  </div>
+                </div>
+                <div className="bg-white/20 px-3 py-2 rounded-xl flex justify-between items-center border border-white/30">
+                  <span className="font-mono text-sm font-extrabold tracking-widest">{currentCustomer.referral_code}</span>
+                  <button onClick={() => {navigator.clipboard.writeText(currentCustomer.referral_code); showToast('Code Copied!');}} className="text-[10px] font-bold bg-white text-[#965216] px-2 py-1 rounded">Copy</button>
+                </div>
+              </div>
+            )}
+
             {(currentCustomer?.pending_bottles || 0) > 0 && (
               <div className="bg-white p-3 rounded-2xl border border-[#EBE5D9] flex justify-between items-center shadow-sm">
                 <div className="text-[11px] font-extrabold text-[#2D241E] flex items-center gap-2"><span>🍾</span> Empty Bottles to Return</div>
@@ -591,14 +693,14 @@ export default function App() {
               </div>
             )}
 
-            <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-1">
               <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2 sticky top-0 bg-[#F8F5EE] py-1">Transaction History</h4>
               {transactions.filter(t => t.customer_name === currentCustomer?.name).length === 0 ? (
                 <p className="text-[11px] text-[#796C61] font-medium text-center py-4 bg-white rounded-xl border border-[#EBE5D9]">No transactions yet.</p>
               ) : (
                 <div className="space-y-2">
                   {transactions.filter(t => t.customer_name === currentCustomer?.name).map((t, idx) => {
-                     const isCredit = t.item?.includes('Recharge');
+                     const isCredit = t.item?.includes('Recharge') || t.item?.includes('Bonus');
                      return (
                        <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] text-xs flex justify-between items-center gap-3 shadow-sm hover:shadow-md transition">
                          <div>
@@ -638,7 +740,13 @@ export default function App() {
                         <div className="flex justify-between items-start">
                           <div>
                             <div className={`font-extrabold ${s.status === 'Paused' ? 'text-[#8B0000]' : 'text-[#1E3F2D]'}`}>{s.product_name} <span className="text-[#B5651D]">({s.quantity})</span></div>
-                            <div className="text-[10px] text-[#796C61] mt-1">{s.frequency} | {s.payment_type === 'scan_deduct' ? 'Scan to Pay' : 'Auto-Pay'}</div>
+                            <div className="text-[10px] text-[#796C61] mt-1 mb-1">{s.frequency} | {s.payment_type === 'scan_deduct' ? 'Scan to Pay' : 'Auto-Pay'}</div>
+                            
+                            <div className="flex gap-1.5 mt-1.5">
+                              <span className="text-[8px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-1.5 py-0.5 rounded">{s.delivery_slot || 'Morning'}</span>
+                              <span className="text-[8px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-1.5 py-0.5 rounded">{s.delivery_instruction || 'Leave in Bag'}</span>
+                            </div>
+
                             {(s.status === 'Paused' && s.pause_end) && (
                               <div className="text-[9px] font-bold bg-white text-[#8B0000] px-2 py-0.5 rounded border border-[#8B0000]/20 mt-1.5 inline-block">
                                 Resumes on: {s.pause_end}
@@ -725,12 +833,31 @@ export default function App() {
       {showSubscribeModal && selectedSubProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh] animate-slide-up border border-[#EBE5D9]">
-            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3 mb-4 shrink-0"><h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🥛 Daily Subscription</span></h3><button onClick={() => setShowSubscribeModal(false)} className="text-[#796C61] font-bold text-lg bg-white w-8 h-8 rounded-full flex items-center justify-center border border-[#EBE5D9]">✕</button></div>
+            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3 mb-4 shrink-0"><h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🥛 Sub Preferences</span></h3><button onClick={() => setShowSubscribeModal(false)} className="text-[#796C61] font-bold text-lg bg-white w-8 h-8 rounded-full flex items-center justify-center border border-[#EBE5D9]">✕</button></div>
             <div className="overflow-y-auto pr-1 space-y-5 pb-2">
               <div className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] flex items-center gap-3 shadow-sm"><span className="text-3xl bg-[#F8F5EE] w-12 h-12 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{selectedSubProduct.icon || '🌿'}</span><div><div className="font-extrabold text-xs text-[#2D241E]">{selectedSubProduct.name}</div><div className="text-xs font-bold text-[#B5651D] mt-0.5">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div></div></div>
               <form onSubmit={handleCreateSubscription} className="space-y-5">
                 <div><label className="text-[11px] font-bold text-[#796C61] uppercase block mb-2">Quantity per day</label><div className="flex items-center gap-2">{[1, 2, 3, 5].map((q) => (<button key={q} type="button" onClick={() => setSubQty(q)} className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border ${subQty === q ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D]' : 'bg-white text-[#2D241E] border-[#EBE5D9]'}`}>{q}</button>))}</div></div>
                 <div><label className="text-[11px] font-bold text-[#796C61] uppercase block mb-2">Frequency</label><div className="flex gap-2"><button type="button" onClick={() => setSubFreq('Daily')} className={`flex-1 py-3 rounded-xl text-xs font-bold border ${subFreq === 'Daily' ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D]' : 'bg-white text-[#2D241E] border-[#EBE5D9]'}`}>📅 Everyday</button><button type="button" onClick={() => setSubFreq('Alternate Days')} className={`flex-1 py-3 rounded-xl text-xs font-bold border ${subFreq === 'Alternate Days' ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D]' : 'bg-white text-[#2D241E] border-[#EBE5D9]'}`}>🗓️ Alt. Days</button></div></div>
+                
+                {/* Advanced Preferences */}
+                <div className="bg-[#F8F5EE] p-3 rounded-2xl border border-[#EBE5D9] space-y-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-[#796C61] uppercase block mb-1.5">Delivery Shift</label>
+                    <select value={subSlot} onChange={(e:any)=>setSubSlot(e.target.value)} className="w-full text-xs p-2.5 bg-white border border-[#EBE5D9] rounded-xl outline-none font-bold text-[#2D241E]">
+                      <option value="Morning (5-7 AM)">🌅 Morning (5 AM - 7 AM)</option>
+                      <option value="Evening (5-7 PM)">🌇 Evening (5 PM - 7 PM)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-[#796C61] uppercase block mb-1.5">Instructions</label>
+                    <select value={subInstruction} onChange={(e:any)=>setSubInstruction(e.target.value)} className="w-full text-xs p-2.5 bg-white border border-[#EBE5D9] rounded-xl outline-none font-bold text-[#2D241E]">
+                      <option value="Leave in Bag 🔕">🔕 Leave in Bag (DND)</option>
+                      <option value="Ring Bell 🔔">🔔 Ring the Bell</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div><label className="text-[11px] font-bold text-[#796C61] uppercase block mb-2">Payment</label><div className="space-y-2"><label className={`p-3.5 rounded-2xl border flex items-start gap-3 ${subPayType === 'scan_deduct' ? 'bg-[#F0EBE1] border-[#1E3F2D]' : 'bg-white border-[#EBE5D9]'}`}><input type="radio" checked={subPayType === 'scan_deduct'} onChange={() => setSubPayType('scan_deduct')} className="mt-0.5 accent-[#1E3F2D]" /><div><div className="text-xs font-bold text-[#2D241E]">📱 Cut after QR Scan</div></div></label><label className={`p-3.5 rounded-2xl border flex items-start gap-3 ${subPayType === 'auto_deduct' ? 'bg-[#F0EBE1] border-[#1E3F2D]' : 'bg-white border-[#EBE5D9]'}`}><input type="radio" checked={subPayType === 'auto_deduct'} onChange={() => setSubPayType('auto_deduct')} className="mt-0.5 accent-[#1E3F2D]" /><div><div className="text-xs font-bold text-[#2D241E]">⚡ Auto-Deduct Wallet</div></div></label></div></div>
                 <div className="pt-2 sticky bottom-0 bg-[#F8F5EE] pb-1"><button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Confirm ➔</button></div>
               </form>
@@ -748,24 +875,24 @@ export default function App() {
               <form onSubmit={handleAdminLogin} className="space-y-3.5">
                 <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
                 <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
-                
-                <div className="text-right mt-1">
-                  <button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#796C61] hover:text-[#2D241E] font-bold">Forgot Password?</button>
-                </div>
-
+                <div className="text-right mt-1"><button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#796C61] hover:text-[#2D241E] font-bold">Forgot Password?</button></div>
                 <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">Login Securely ➔</button>
               </form>
             ) : (
               <form className="space-y-3.5">
-                {authView === 'signup' && (<><input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required /><input type="tel" placeholder="Mobile" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required /><textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] h-16" required /></>)}
+                {authView === 'signup' && (
+                  <>
+                    <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                    <input type="tel" placeholder="Mobile" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                    <textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] h-16" required />
+                    {/* Referral Code Field added */}
+                    <input type="text" placeholder="Referral Code (Optional)" value={signupReferral} onChange={(e) => setSignupReferral(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] uppercase" />
+                  </>
+                )}
                 <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
                 <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
                 
-                {authView === 'login' && (
-                  <div className="text-right mt-1">
-                    <button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#B5651D] hover:underline font-bold">Forgot Password?</button>
-                  </div>
-                )}
+                {authView === 'login' && (<div className="text-right mt-1"><button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#B5651D] hover:underline font-bold">Forgot Password?</button></div>)}
 
                 <button type="button" onClick={authView === 'login' ? handlePasswordLogin : handleCustomerSignup} className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">{authView === 'login' ? 'Login ➔' : 'Sign Up ➔'}</button>
                 <div className="text-center mt-4 text-[11px] text-[#796C61] font-medium">{authView === 'login' ? <button type="button" onClick={() => setAuthView('signup')} className="text-[#B5651D] font-bold">Sign Up</button> : <button type="button" onClick={() => setAuthView('login')} className="text-[#B5651D] font-bold">Login</button>}</div>
