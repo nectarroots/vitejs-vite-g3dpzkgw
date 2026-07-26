@@ -132,12 +132,6 @@ export default function App() {
     setTimeout(() => setToast({ show: false, msg: '', type: '' }), 3500);
   };
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoginError('');
-    const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
-    if (error) setLoginError(error.message); else { showToast('Secure Dashboard Accessed 👑'); closeModal(); }
-  };
-
   const captureLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((pos) => {
@@ -146,6 +140,12 @@ export default function App() {
         showToast("Location Captured 📍");
       }, () => showToast("Location denied", "error"));
     }
+  };
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoginError('');
+    const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput });
+    if (error) setLoginError(error.message); else { showToast('Secure Dashboard Accessed 👑'); closeModal(); }
   };
 
   const handleCustomerSignup = async (e: React.FormEvent) => {
@@ -204,7 +204,7 @@ export default function App() {
       const newSub = { 
         customer_id: currentCustomer.id, customer_name: currentCustomer.name, product_name: selectedSubProduct.name, quantity: subQty, 
         price: selectedSubProduct.price * subQty, frequency: subFreq, payment_type: subPayType, status: 'Active', 
-        delivery_slot: subSlot, delivery_instruction: subInstruction
+        delivery_slot: subSlot, delivery_instruction: subInstruction, modifications: {} 
       };
       await supabase.from('subscriptions').insert([newSub]);
       fetchLiveDatabaseData(); setShowSubscribeModal(false); showToast(`Subscription Started! 📅`);
@@ -227,7 +227,7 @@ export default function App() {
       await supabase.from('subscriptions').update({ modifications: updatedMods }).eq('id', sub.id);
       fetchLiveDatabaseData(); setShowModifyForm(null); setModifyDate(''); setModifyQty('');
       showToast(`Quantity updated for ${modifyDate}`);
-    } catch(e:any) { alert("Column missing in database: " + e.message); }
+    } catch(e:any) { showToast("Modification failed (Check DB Column)", "error"); }
   };
 
   const handleResume = async (subId: string, productName: string) => {
@@ -286,21 +286,36 @@ export default function App() {
     } catch (err: any) { alert("Delivery Error: " + err.message); }
   };
 
-  // ✅ PERFECT WORKING "EDIT" RESTORED (Optimistic Update)
+  // ✅ FULLY REPAIRED EDIT PRODUCT FUNCTION
   const handleUpdateProduct = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!editingProduct) return;
-    await supabase.from('products').update({ name: editingProduct.name, price: editingProduct.price, category: editingProduct.category }).eq('id', editingProduct.id);
-    setProducts(products.map((p) => String(p.id) === String(editingProduct.id) ? editingProduct : p)); 
-    setEditingProduct(null); 
-    showToast('Product updated!');
+    e.preventDefault(); 
+    if (!editingProduct) return;
+    try {
+      const { error } = await supabase.from('products').update({ 
+        name: editingProduct.name, 
+        price: Number(editingProduct.price), 
+        category: editingProduct.category 
+      }).eq('id', editingProduct.id);
+      
+      if (error) throw error;
+      
+      // Update locally immediately
+      setProducts(products.map((p) => String(p.id) === String(editingProduct.id) ? { ...p, ...editingProduct, price: Number(editingProduct.price) } : p)); 
+      setEditingProduct(null); 
+      showToast('Product updated successfully! ✅');
+    } catch (err: any) {
+      showToast("Edit Failed: " + err.message, "error");
+    }
   };
 
-  // ✅ PERFECT WORKING "ADD" RESTORED
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProd.name || !newProd.price) return;
-    const { data } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag }]).select();
-    if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
+    try {
+      const { data, error } = await supabase.from('products').insert([{ name: newProd.name, category: newProd.category, price: Number(newProd.price), original_price: Number(newProd.price) + 15, unit: newProd.unit, icon: '🌿', tag: newProd.tag, is_active: true }]).select();
+      if (error) throw error;
+      if (data) { setProducts([...products, { ...data[0], id: String(data[0].id) }]); setNewProd({ name: '', price: '', unit: 'Liter', category: 'Dairy', tag: 'Fresh' }); showToast('Product published!'); }
+    } catch (err: any) { alert("Add Product Error: " + err.message); }
   };
 
   const handleToggleProductStock = async (p: any) => {
@@ -315,14 +330,14 @@ export default function App() {
 
   const handleSeedProducts = async () => {
     const premiumCatalog = [
-      { name: 'Fresh Malai Paneer', price: 125, original_price: 140, unit: '200g', category: 'Dairy', icon: '🧀', tag: 'Fresh' },
-      { name: 'Farm Fresh Dahi', price: 85, original_price: 100, unit: '500g', category: 'Dairy', icon: '🥣', tag: 'Probiotic' },
-      { name: 'Masala Chaach', price: 45, original_price: 55, unit: '1 Liter', category: 'Dairy', icon: '🥛', tag: 'Cooling' },
-      { name: 'White Butter (Unsalted)', price: 160, original_price: 180, unit: '250g', category: 'Dairy', icon: '🧈', tag: 'Pure' },
-      { name: 'Fresh Khoya / Mawa', price: 110, original_price: 130, unit: '250g', category: 'Dairy', icon: '🍘', tag: 'Sweets' },
-      { name: 'Pure A2 Cow Milk', price: 95, original_price: 110, unit: '1 Liter', category: 'Dairy', icon: '🐄', tag: 'A2' },
-      { name: 'Pure Goat Milk', price: 150, original_price: 170, unit: '1 Liter', category: 'Dairy', icon: '🐐', tag: 'Healthy' },
-      { name: 'Desi Free-Range Eggs', price: 120, original_price: 140, unit: '6 Pack', category: 'Eggs', icon: '🥚', tag: 'Protein' }
+      { name: 'Fresh Malai Paneer', price: 125, original_price: 140, unit: '200g', category: 'Dairy', icon: '🧀', tag: 'Fresh', is_active: true },
+      { name: 'Farm Fresh Dahi', price: 85, original_price: 100, unit: '500g', category: 'Dairy', icon: '🥣', tag: 'Probiotic', is_active: true },
+      { name: 'Masala Chaach', price: 45, original_price: 55, unit: '1 Liter', category: 'Dairy', icon: '🥛', tag: 'Cooling', is_active: true },
+      { name: 'White Butter (Unsalted)', price: 160, original_price: 180, unit: '250g', category: 'Dairy', icon: '🧈', tag: 'Pure', is_active: true },
+      { name: 'Fresh Khoya / Mawa', price: 110, original_price: 130, unit: '250g', category: 'Dairy', icon: '🍘', tag: 'Sweets', is_active: true },
+      { name: 'Pure A2 Cow Milk', price: 95, original_price: 110, unit: '1 Liter', category: 'Dairy', icon: '🐄', tag: 'A2', is_active: true },
+      { name: 'Pure Goat Milk', price: 150, original_price: 170, unit: '1 Liter', category: 'Dairy', icon: '🐐', tag: 'Healthy', is_active: true },
+      { name: 'Desi Free-Range Eggs', price: 120, original_price: 140, unit: '6 Pack', category: 'Eggs', icon: '🥚', tag: 'Protein', is_active: true }
     ];
     const existingNames = products.map(p => p.name.toLowerCase());
     const toInsert = premiumCatalog.filter(p => !existingNames.includes(p.name.toLowerCase()));
@@ -529,6 +544,7 @@ export default function App() {
         </div>
       )}
 
+      {/* ADMIN VIEW */}
       {role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#152E20] flex justify-between items-center">
@@ -554,28 +570,12 @@ export default function App() {
               <button type="button" onClick={downloadExcelReport} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#1E3F2D] font-extrabold py-3.5 rounded-2xl shadow-sm text-xs flex items-center justify-center gap-2 transition">
                 <span className="text-lg">📥</span> Download Monthly Budget & Dispatch (Excel)
               </button>
-
-              <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm mt-4">
-                <h2 className="font-bold text-sm text-[#2D241E] mb-4">⏸️ Vacation Mode (Paused Subs)</h2>
-                {subscriptions.filter(s => s.status === 'Paused').length === 0 && <div className="text-xs text-center py-6 text-[#796C61] font-medium">No deliveries are paused right now.</div>}
-                {subscriptions.filter(s => s.status === 'Paused').map((s, idx) => (
-                  <div key={idx} className="p-3 bg-[#8B0000]/5 rounded-2xl border border-[#8B0000]/20 mb-3 flex justify-between items-center">
-                    <div>
-                      <div className="font-extrabold text-xs text-[#8B0000]">{s.customer_name}</div>
-                      <div className="text-[11px] text-[#796C61] mt-0.5">{s.product_name} ({s.quantity} qty)</div>
-                      {(s.pause_start && s.pause_end) && (<div className="text-[9px] font-bold bg-white text-[#8B0000] px-2 py-0.5 rounded border border-[#8B0000]/20 mt-1.5 inline-block">Till: {s.pause_end}</div>)}
-                    </div>
-                    <span className="bg-[#8B0000] text-white text-[10px] font-bold px-2 py-1 rounded-lg">PAUSED</span>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
           {adminTab === 'dispatch' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-1">📝 Tomorrow's Dispatch Sheet</h2>
-              <p className="text-[10px] text-[#796C61] mb-4">Calculated from Active Subs & Daily Modifications</p>
               {Object.keys(getDispatchData()).length === 0 ? (
                  <div className="text-xs text-center py-8 text-[#796C61] font-medium">No active subscriptions found.</div>
               ) : (
@@ -608,7 +608,6 @@ export default function App() {
           {adminTab === 'broadcast' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-2">📢 Push Notification Center</h2>
-              <p className="text-[10px] text-[#796C61] mb-4">Send a direct message to all customer apps instantly.</p>
               <form onSubmit={handleBroadcast}>
                 <textarea placeholder="Write your broadcast message here..." value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} className="w-full text-xs p-3 bg-[#F8F5EE] rounded-xl border border-[#EBE5D9] h-24 mb-3" required />
                 <button type="submit" className="w-full bg-[#1E3F2D] text-white text-xs py-3 rounded-xl font-bold">Send to All Users 🚀</button>
@@ -628,7 +627,6 @@ export default function App() {
                       </div>
                       <div className="text-[11px] text-[#796C61] mt-1 flex flex-col gap-0.5">
                         <span>📞 {c.phone}</span>
-                        {c.lat && <span>📍 Lat: {c.lat.toFixed(4)}, Lng: {c.lng.toFixed(4)}</span>}
                       </div>
                       <div className="flex gap-4 items-center mt-1.5">
                         <div className="text-[11px] font-extrabold text-[#B5651D]">Wallet: ₹{c.wallet_balance || 0}</div>
@@ -668,9 +666,9 @@ export default function App() {
               <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="font-bold text-sm text-[#2D241E]">📦 Live Database Inventory</h2>
-                  <button type="button" onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Premium Catalog</button>
+                  <button type="button" onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Catalog</button>
                 </div>
-                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
+                {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty.</div>}
                 <div className="divide-y divide-[#EBE5D9]">
                   {products.map((p) => (
                     <div key={p.id} className="py-3 flex justify-between items-center gap-2">
@@ -696,8 +694,6 @@ export default function App() {
           {adminTab === 'delivery' && (
             <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
               <h2 className="font-bold text-sm text-[#2D241E] mb-1">🛵 Today's Delivery Tracking</h2>
-              <p className="text-[10px] text-[#796C61] mb-4">Live completed deliveries by agents today.</p>
-              
               <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                  {transactions.filter(t => t.item?.includes('Delivery') && new Date(t.created_at).toDateString() === new Date().toDateString()).length === 0 ? (
                     <div className="text-[11px] text-[#796C61] text-center py-6">No deliveries completed today yet.</div>
@@ -705,15 +701,11 @@ export default function App() {
                    transactions.filter(t => t.item?.includes('Delivery') && new Date(t.created_at).toDateString() === new Date().toDateString()).map((t, idx) => {
                      const agentMatch = t.item.match(/\[Agent: (.*?)\]/);
                      const agent = agentMatch ? agentMatch[1] : 'Unknown Agent';
-                     const productInfo = t.item.split(' [Agent:')[0];
                      return (
                        <div key={idx} className="p-3 bg-[#F8F5EE] rounded-2xl border border-[#EBE5D9] text-xs">
                          <div className="flex justify-between items-start mb-1">
-                           <div className="font-bold text-[#1E3F2D]">{productInfo}</div>
-                           <div className="flex gap-2">
-                             {t.proof_image && <button type="button" onClick={() => setViewProofModal(t.proof_image)} className="text-[10px] bg-white border border-[#EBE5D9] px-1.5 py-0.5 rounded">📸 Proof</button>}
-                             <div className="text-[9px] font-extrabold bg-white px-2 py-0.5 rounded border border-[#EBE5D9] text-[#796C61]">{new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                           </div>
+                           <div className="font-bold text-[#1E3F2D]">{t.item.split(' [Agent:')[0]}</div>
+                           <div className="text-[9px] font-extrabold bg-white px-2 py-0.5 rounded border border-[#EBE5D9] text-[#796C61]">{new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                          </div>
                          <div className="text-[10px] text-[#796C61] font-medium flex justify-between">
                            <span>To: <strong className="text-[#2D241E]">{t.customer_name}</strong></span>
@@ -729,47 +721,15 @@ export default function App() {
         </div>
       )}
 
-      {adminViewCustomer && (
-        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
-              <h3 className="font-extrabold text-sm text-[#2D241E]">Customer: {adminViewCustomer.name}</h3>
-              <button type="button" onClick={() => setAdminViewCustomer(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
-            </div>
-            <div className="text-xs space-y-1.5 bg-white p-3 rounded-xl border border-[#EBE5D9]">
-              <div><strong>Email:</strong> {adminViewCustomer.email}</div>
-              <div><strong>Phone:</strong> {adminViewCustomer.phone}</div>
-              <div><strong>Address:</strong> {adminViewCustomer.address}</div>
-              <div><strong>Wallet:</strong> ₹{adminViewCustomer.wallet_balance}</div>
-            </div>
-            <div className="pt-2 border-t border-[#EBE5D9]">
-              <h4 className="text-[11px] font-bold text-[#796C61] uppercase mb-2">Full Transaction Log</h4>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {transactions.filter(t => t.customer_name === adminViewCustomer.name).map((t, idx) => (
-                   <div key={idx} className="p-2.5 bg-white rounded-xl border border-[#EBE5D9] text-[10px] flex justify-between items-center shadow-sm">
-                     <div className="w-3/4 pr-2">
-                       <div className="font-bold text-[#2D241E] leading-snug">{t.item}</div>
-                       <div className="text-[8px] text-[#796C61] mt-0.5">{new Date(t.created_at).toLocaleDateString()}</div>
-                     </div>
-                     <div className="font-extrabold text-[#1E3F2D] shrink-0">₹{t.amount}</div>
-                   </div>
-                ))}
-                {transactions.filter(t => t.customer_name === adminViewCustomer.name).length === 0 && <div className="text-[10px] text-center text-[#796C61]">No records found.</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DELIVERY BOY DASHBOARD */}
+      {/* DELIVERY VIEW */}
       {role === 'delivery' && (
         <div className="max-w-md mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#B5651D] to-[#965216] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#965216] flex justify-between items-center">
             <div><span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase mb-1 inline-block">Agent: {user?.email?.split('@')[0]}</span><h1 className="font-extrabold text-base sm:text-lg text-white">Delivery Portal</h1></div><div className="text-3xl opacity-80">🛵</div>
           </div>
           <div className="bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm grid grid-cols-2 gap-1.5">
-            <button type="button" onClick={() => setDeliveryTab('pending')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'pending' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📦 Pending Duties</button>
-            <button type="button" onClick={() => setDeliveryTab('history')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'history' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📜 My History</button>
+            <button type="button" onClick={() => setDeliveryTab('pending')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'pending' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📦 Pending</button>
+            <button type="button" onClick={() => setDeliveryTab('history')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'history' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📜 History</button>
           </div>
 
           {deliveryTab === 'pending' && (
@@ -777,15 +737,11 @@ export default function App() {
               <div className="flex justify-end">
                 <button type="button" onClick={sortDeliveriesByLocation} className="bg-white border border-[#EBE5D9] text-[#1E3F2D] text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm">📍 Sort by Nearest</button>
               </div>
-
-              {displaySubscriptions.length === 0 && (<div className="text-center p-8 bg-white rounded-3xl border border-[#EBE5D9] shadow-sm"><div className="text-4xl mb-2 opacity-80">🎉</div><div className="text-xs text-[#796C61] font-bold">No pending deliveries!</div></div>)}
-              
               {displaySubscriptions.map((sub, idx) => {
                 const cust = customers.find(c => String(c.id) === String(sub.customer_id));
                 const todayStr = new Date().toISOString().split('T')[0];
                 let todayQty = sub.quantity;
                 if(sub.modifications && sub.modifications[todayStr] !== undefined) todayQty = sub.modifications[todayStr];
-                
                 if (todayQty === 0) return null;
 
                 return (
@@ -801,36 +757,21 @@ export default function App() {
                       <span>📍 {cust?.address || 'Address not available'}</span>
                       {(agentLocation && cust?.lat) && <span className="text-[#B5651D] font-bold">📏 {calculateDistance(agentLocation.lat, agentLocation.lng, cust.lat, cust.lng).toFixed(2)} km away</span>}
                     </div>
-                    <div className="flex gap-2 mb-2">
-                      <span className="text-[9px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-2 py-1 rounded">{sub.delivery_slot || 'Morning (5-7 AM)'}</span>
-                      <span className="text-[9px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-2 py-1 rounded">{sub.delivery_instruction || 'Leave in Bag 🔕'}</span>
-                    </div>
 
                     <div className="flex justify-between items-center bg-[#F8F5EE] p-2.5 rounded-xl mb-3 border border-[#EBE5D9]">
                       <div className="text-xs font-bold text-[#1E3F2D]"><span>🥛</span> {sub.product_name}</div>
                       <div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">{todayQty} qty</div>
                     </div>
-                    <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button type="button" onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Scan & Deliver</button></div>
+                    <button type="button" onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="w-full bg-[#1E3F2D] text-white py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Deliver</button>
                   </div>
                 );
               })}
             </div>
           )}
-          {deliveryTab === 'history' && (
-            <div className="space-y-4">
-              <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm flex justify-between items-center"><div><div className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Total Collected</div><div className="text-[10px] text-[#B5651D] font-medium">(From QR)</div></div><div className="text-xl font-extrabold text-[#1E3F2D]">₹{agentTotalCollected}</div></div>
-              <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm"><h3 className="font-bold text-sm text-[#2D241E] mb-3">📜 Delivery Logs</h3>
-                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {agentTransactions.map((t, idx) => (
-                    <div key={idx} className="p-3 bg-[#F8F5EE] rounded-2xl border border-[#EBE5D9] flex justify-between items-center gap-3"><div><div className="font-bold text-[#2D241E] text-xs line-clamp-1">{t.item?.split(' [Agent:')[0]}</div><div className="text-[10px] text-[#796C61] font-medium mt-0.5">To: <span className="font-bold">{t.customer_name}</span></div></div><div className="font-extrabold text-[#1E3F2D] text-xs shrink-0 bg-white border border-[#EBE5D9] px-2 py-1 rounded-lg">₹{t.amount}</div></div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
+      {/* CUSTOMER VIEW */}
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
           <div className="relative w-full h-28 sm:h-32 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
@@ -840,9 +781,6 @@ export default function App() {
                 <div className="absolute -right-2 -bottom-5 text-7xl opacity-15">{b.icon}</div>
               </div>
             ))}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
-              {banners.map((_, i) => (<div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentBanner ? 'bg-white w-4' : 'bg-white/50'}`}></div>))}
-            </div>
           </div>
 
           <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar px-1">
@@ -875,24 +813,19 @@ export default function App() {
         </main>
       )}
 
+      {/* --- ALL MODALS (RENDERED EXACTLY ONCE TO PREVENT CONFLICTS) --- */}
+      
       {showNotifModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
-              <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🔔 Notifications</span></h3>
-              <button type="button" onClick={() => setShowNotifModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+              <h3 className="font-extrabold text-sm text-[#2D241E]">🔔 Notifications</h3>
+              <button type="button" onClick={() => setShowNotifModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-              {userNotifications.length === 0 ? (
-                <p className="text-[11px] text-[#796C61] font-medium text-center py-8">No notifications yet.</p>
-              ) : (
-                userNotifications.map((n, i) => (
-                  <div key={i} className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] shadow-sm">
-                    <div className="text-xs font-bold text-[#2D241E] leading-snug">{n.message}</div>
-                    <div className="text-[9px] text-[#796C61] mt-1.5">{new Date(n.created_at).toLocaleDateString()} | {new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                  </div>
-                ))
-              )}
+              {notifications.filter(n => n.customer_id === currentCustomer?.id).map((n, i) => (
+                <div key={i} className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] shadow-sm text-xs font-bold text-[#2D241E]">{n.message}</div>
+              ))}
             </div>
           </div>
         </div>
@@ -902,64 +835,20 @@ export default function App() {
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
-              <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>💳 Wallet & Passbook</span></h3>
-              <button type="button" onClick={() => setShowWalletModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+              <h3 className="font-extrabold text-sm text-[#2D241E]">💳 Wallet & Passbook</h3>
+              <button type="button" onClick={() => setShowWalletModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
-            
-            {(currentCustomer?.wallet_balance || 0) < 200 && (
-              <div className="bg-[#8B0000]/10 border border-[#8B0000]/20 text-[#8B0000] text-[10px] p-2.5 rounded-xl font-bold flex gap-2 items-center">
-                <span className="text-lg">⚠️</span> Your balance is running low. Please recharge to avoid daily delivery cancellations.
-              </div>
-            )}
-
-            <div className="bg-[#1E3F2D] text-white p-5 rounded-2xl shadow-inner text-center border border-[#152E20] relative overflow-hidden">
-              <div className="relative z-10">
-                <div className="text-[10px] font-bold text-[#A5C0A0] uppercase tracking-widest">Current Balance</div>
-                <div className="text-4xl font-extrabold mt-1 tracking-tight">₹{currentCustomer?.wallet_balance || 0}</div>
-                <p className="text-[9px] text-[#A5C0A0] mt-2">Balance is used for subscriptions & orders</p>
-              </div>
-              <div className="absolute -right-4 -bottom-4 text-6xl opacity-10">💳</div>
+            <div className="bg-[#1E3F2D] text-white p-5 rounded-2xl shadow-inner text-center border border-[#152E20]">
+              <div className="text-[10px] font-bold text-[#A5C0A0] uppercase tracking-widest">Current Balance</div>
+              <div className="text-4xl font-extrabold mt-1 tracking-tight">₹{currentCustomer?.wallet_balance || 0}</div>
             </div>
-
-            {currentCustomer?.referral_code && (
-              <div className="bg-gradient-to-r from-[#B5651D] to-[#965216] p-4 rounded-2xl shadow-md text-white border border-[#965216]">
-                <div className="flex items-center gap-2 mb-2"><span className="text-xl">🎁</span><div><div className="font-extrabold text-xs">Refer & Earn ₹100</div><div className="text-[9px] text-white/80">Get ₹100 when a friend signs up with your code.</div></div></div>
-                <div className="bg-white/20 px-3 py-2 rounded-xl flex justify-between items-center border border-white/30">
-                  <span className="font-mono text-sm font-extrabold tracking-widest">{currentCustomer.referral_code}</span>
-                  <button type="button" onClick={() => {navigator.clipboard.writeText(currentCustomer.referral_code); showToast('Code Copied!');}} className="text-[10px] font-bold bg-white text-[#965216] px-2 py-1 rounded">Copy</button>
-                </div>
-              </div>
-            )}
-
-            {(currentCustomer?.pending_bottles || 0) > 0 && (
-              <div className="bg-white p-3 rounded-2xl border border-[#EBE5D9] flex justify-between items-center shadow-sm">
-                <div className="text-[11px] font-extrabold text-[#2D241E] flex items-center gap-2"><span>🍾</span> Empty Bottles to Return</div>
-                <div className="text-sm font-extrabold text-[#B5651D] bg-[#F8F5EE] px-3 py-1 rounded-xl border border-[#EBE5D9]">{currentCustomer?.pending_bottles}</div>
-              </div>
-            )}
-
             <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-1">
-              <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2 sticky top-0 bg-[#F8F5EE] py-1">Transaction History</h4>
-              {transactions.filter(t => t.customer_name === currentCustomer?.name).length === 0 ? (
-                <p className="text-[11px] text-[#796C61] font-medium text-center py-4 bg-white rounded-xl border border-[#EBE5D9]">No transactions yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {transactions.filter(t => t.customer_name === currentCustomer?.name).map((t, idx) => {
-                     const isCredit = t.item?.includes('Recharge') || t.item?.includes('Bonus');
-                     return (
-                       <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] text-xs flex justify-between items-center gap-3 shadow-sm hover:shadow-md transition">
-                         <div>
-                           <div className="font-bold text-[#2D241E] leading-snug line-clamp-1">{t.item.split(' [Agent:')[0]}</div>
-                           <div className="text-[9px] text-[#796C61] mt-0.5">{new Date(t.created_at).toLocaleDateString()} | {new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                         </div>
-                         <div className={`font-extrabold shrink-0 px-2 py-1 rounded-md border ${isCredit ? 'text-[#1E3F2D] bg-[#1E3F2D]/5 border-[#1E3F2D]/20' : 'text-[#8B0000] bg-[#8B0000]/5 border-[#8B0000]/20'}`}>
-                           {isCredit ? '+' : '-'}₹{t.amount}
-                         </div>
-                       </div>
-                     );
-                  })}
+              {transactions.filter(t => t.customer_name === currentCustomer?.name).map((t, idx) => (
+                <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] text-xs flex justify-between items-center shadow-sm">
+                  <div className="font-bold text-[#2D241E]">{t.item.split(' [Agent:')[0]}</div>
+                  <div className="font-extrabold">₹{t.amount}</div>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         </div>
@@ -970,105 +859,19 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
               <h3 className="font-extrabold text-sm text-[#2D241E]">📦 My Orders & Subs</h3>
-              <button type="button" onClick={() => setShowOrdersModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+              <button type="button" onClick={() => setShowOrdersModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
-            
-            <div className="space-y-5">
-              <div>
-                <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2">My Subscriptions</h4>
-                {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
-                   <p className="text-[11px] text-[#796C61] font-medium text-center py-2 bg-white rounded-xl border border-[#EBE5D9]">No subscriptions yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
-                      <div key={idx} className={`p-3.5 rounded-2xl border shadow-sm ${s.status === 'Paused' ? 'bg-[#8B0000]/5 border-[#8B0000]/20' : 'bg-white border-[#EBE5D9]'}`}>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className={`font-extrabold ${s.status === 'Paused' ? 'text-[#8B0000]' : 'text-[#1E3F2D]'}`}>{s.product_name} <span className="text-[#B5651D]">({s.quantity})</span></div>
-                            <div className="text-[10px] text-[#796C61] mt-1 mb-1">{s.frequency} | {s.payment_type === 'scan_deduct' ? 'Scan to Pay' : 'Auto-Pay'}</div>
-                            
-                            <div className="flex gap-1.5 mt-1.5">
-                              <span className="text-[8px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-1.5 py-0.5 rounded">{s.delivery_slot || 'Morning'}</span>
-                              <span className="text-[8px] bg-[#F8F5EE] border border-[#EBE5D9] text-[#1E3F2D] font-bold px-1.5 py-0.5 rounded">{s.delivery_instruction || 'Leave in Bag'}</span>
-                            </div>
-
-                            {(s.status === 'Paused' && s.pause_end) && (
-                              <div className="text-[9px] font-bold bg-white text-[#8B0000] px-2 py-0.5 rounded border border-[#8B0000]/20 mt-1.5 inline-block">
-                                Resumes on: {s.pause_end}
-                              </div>
-                            )}
-
-                            {Object.keys(s.modifications || {}).length > 0 && (
-                               <div className="mt-2 space-y-1">
-                                 {Object.entries(s.modifications).map(([d, q]: any) => (
-                                    <div key={d} className="text-[8px] font-bold text-[#B5651D] bg-[#F8F5EE] px-1.5 py-0.5 rounded inline-block mr-1 border border-[#EBE5D9]">{d}: {q} qty</div>
-                                 ))}
-                               </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex flex-col gap-1.5">
-                            {s.status === 'Paused' ? (
-                              <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-[#1E3F2D] text-white border-[#1E3F2D] shadow-sm">▶ Resume</button>
-                            ) : (
-                              showVacationForm === s.id ? (
-                                <div className="flex flex-col gap-1.5 items-end">
-                                  <input type="date" value={vacationStart} onChange={(e)=>setVacationStart(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
-                                  <span className="text-[8px] font-bold text-[#796C61]">TO</span>
-                                  <input type="date" value={vacationEnd} onChange={(e)=>setVacationEnd(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
-                                  <div className="flex gap-1 mt-1">
-                                    <button type="button" onClick={() => setShowVacationForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">Cancel</button>
-                                    <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[9px] bg-[#8B0000] text-white px-2 py-1 rounded font-bold">Confirm</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button type="button" onClick={() => setShowVacationForm(s.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]">⏸ Pause Subs</button>
-                              )
-                            )}
-
-                            {showModifyForm === s.id ? (
-                              <div className="flex flex-col gap-1.5 items-end mt-2 bg-white p-2 rounded border border-[#EBE5D9]">
-                                <input type="date" value={modifyDate} onChange={(e)=>setModifyDate(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
-                                <input type="number" placeholder="Qty (0 to skip)" value={modifyQty} onChange={(e)=>setModifyQty(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9] w-20" required/>
-                                <div className="flex gap-1 mt-1">
-                                  <button type="button" onClick={() => setShowModifyForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">X</button>
-                                  <button type="button" onClick={() => handleAddModification(s)} className="text-[9px] bg-[#1E3F2D] text-white px-2 py-1 rounded font-bold">Save</button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button type="button" onClick={() => setShowModifyForm(s.id)} className="text-[9px] font-bold px-2 py-1 rounded border bg-[#F8F5EE] text-[#1E3F2D] border-[#EBE5D9] mt-1">📅 Edit specific day</button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+            <div className="space-y-3">
+               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
+                    <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
+                    {s.status === 'Paused' ? (
+                       <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
+                    ) : (
+                       <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
+                    )}
                   </div>
-                )}
-              </div>
-
-              <div className="pt-2 border-t border-[#EBE5D9]">
-                <h4 className="text-[11px] font-bold text-[#796C61] uppercase tracking-wide mb-2">Recent Deliveries</h4>
-                {transactions.filter(t => t.customer_name === currentCustomer?.name && t.item?.includes('Delivery')).length === 0 ? (
-                  <p className="text-[11px] text-[#796C61] font-medium text-center py-2 bg-white rounded-xl border border-[#EBE5D9]">No recent deliveries.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {transactions.filter(t => t.customer_name === currentCustomer?.name && t.item?.includes('Delivery')).map((t, idx) => (
-                       <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] text-xs flex justify-between items-center gap-3">
-                         <div>
-                           <div className="font-bold text-[#2D241E] leading-snug line-clamp-1">{t.item.split(' [Agent:')[0]}</div>
-                           <div className="flex gap-2 items-center mt-1">
-                             <span className="text-[9px] text-[#796C61]">{new Date(t.created_at).toLocaleDateString()}</span>
-                             {t.proof_image && <button type="button" onClick={() => setViewProofModal(t.proof_image)} className="text-[9px] font-bold bg-[#F8F5EE] border border-[#EBE5D9] px-1.5 py-0.5 rounded">📸 Proof</button>}
-                           </div>
-                         </div>
-                         <div className="font-extrabold text-[#1E3F2D] shrink-0 bg-[#F8F5EE] px-2 py-1 rounded-md border border-[#EBE5D9]">
-                           ₹{t.amount}
-                         </div>
-                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+               ))}
             </div>
           </div>
         </div>
@@ -1077,11 +880,8 @@ export default function App() {
       {viewProofModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-white rounded-3xl p-3 max-w-sm w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-extrabold text-sm text-[#2D241E]">Delivery Proof 📸</h3>
-              <button type="button" onClick={() => setViewProofModal(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-[#F8F5EE] w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
-            </div>
-            <img src={viewProofModal} alt="Proof" className="w-full rounded-2xl border border-[#EBE5D9]" />
+            <button type="button" onClick={() => setViewProofModal(null)} className="absolute top-2 right-2 bg-white w-8 h-8 rounded-full">✕</button>
+            <img src={viewProofModal} alt="Proof" className="w-full rounded-2xl" />
           </div>
         </div>
       )}
@@ -1091,58 +891,96 @@ export default function App() {
            <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
               <div className="flex justify-between items-start mb-4">
                  <div className="w-16 h-16 bg-white border border-[#EBE5D9] rounded-2xl flex items-center justify-center text-4xl shadow-sm">{viewProduct.icon}</div>
-                 <button type="button" onClick={() => setViewProduct(null)} className="bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center font-bold text-[#796C61]">✕</button>
+                 <button type="button" onClick={() => setViewProduct(null)} className="bg-white w-8 h-8 rounded-full border">✕</button>
               </div>
               <h3 className="font-extrabold text-lg text-[#2D241E]">{viewProduct.name}</h3>
-              <div className="text-lg font-extrabold text-[#B5651D] mt-1">₹{viewProduct.price} <span className="text-xs text-[#796C61] font-medium">/ {viewProduct.unit}</span></div>
-              
-              <div className="mt-5 space-y-3">
-                 <div className="bg-white p-3 rounded-2xl border border-[#EBE5D9] flex items-center gap-3">
-                    <div className="text-xl">💯</div><div><div className="text-xs font-bold text-[#2D241E]">100% Organic & Pure</div><div className="text-[10px] text-[#796C61] mt-0.5">No chemicals, direct from our farms.</div></div>
-                 </div>
-                 <div className="bg-white p-3 rounded-2xl border border-[#EBE5D9] flex items-center gap-3">
-                    <div className="text-xl">🛵</div><div><div className="text-xs font-bold text-[#2D241E]">Morning Delivery Guaranteed</div><div className="text-[10px] text-[#796C61] mt-0.5">Delivered fresh before 7:00 AM daily.</div></div>
-                 </div>
-              </div>
-              <button type="button" onClick={() => setViewProduct(null)} className="w-full bg-[#1E3F2D] text-white font-bold py-3.5 rounded-xl text-xs mt-5 active:scale-95 transition">Close Information</button>
+              <div className="text-lg font-extrabold text-[#B5651D] mt-1">₹{viewProduct.price}</div>
+              <button type="button" onClick={() => setViewProduct(null)} className="w-full bg-[#1E3F2D] text-white font-bold py-3.5 rounded-xl text-xs mt-5 active:scale-95">Close</button>
            </div>
         </div>
       )}
 
       {showSubscribeModal && selectedSubProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh] animate-slide-up border border-[#EBE5D9]">
-            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3 mb-4 shrink-0"><h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🥛 Sub Preferences</span></h3><button type="button" onClick={() => setShowSubscribeModal(false)} className="text-[#796C61] font-bold text-lg bg-white w-8 h-8 rounded-full flex items-center justify-center border border-[#EBE5D9]">✕</button></div>
-            <div className="overflow-y-auto pr-1 space-y-5 pb-2">
-              <div className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] flex items-center gap-3 shadow-sm"><span className="text-3xl bg-[#F8F5EE] w-12 h-12 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{selectedSubProduct.icon || '🌿'}</span><div><div className="font-extrabold text-xs text-[#2D241E]">{selectedSubProduct.name}</div><div className="text-xs font-bold text-[#B5651D] mt-0.5">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div></div></div>
-              <form onSubmit={handleCreateSubscription} className="space-y-5">
-                <div><label className="text-[11px] font-bold text-[#796C61] uppercase block mb-2">Quantity per day</label><div className="flex items-center gap-2">{[1, 2, 3, 5].map((q) => (<button key={q} type="button" onClick={() => setSubQty(q)} className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border ${subQty === q ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D]' : 'bg-white text-[#2D241E] border-[#EBE5D9]'}`}>{q}</button>))}</div></div>
-                <div><label className="text-[11px] font-bold text-[#796C61] uppercase block mb-2">Frequency</label><div className="flex gap-2"><button type="button" onClick={() => setSubFreq('Daily')} className={`flex-1 py-3 rounded-xl text-xs font-bold border ${subFreq === 'Daily' ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D]' : 'bg-white text-[#2D241E] border-[#EBE5D9]'}`}>📅 Everyday</button><button type="button" onClick={() => setSubFreq('Alternate Days')} className={`flex-1 py-3 rounded-xl text-xs font-bold border ${subFreq === 'Alternate Days' ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D]' : 'bg-white text-[#2D241E] border-[#EBE5D9]'}`}>🗓️ Alt. Days</button></div></div>
-                <div className="bg-[#F8F5EE] p-3 rounded-2xl border border-[#EBE5D9] space-y-3">
-                  <div><label className="text-[10px] font-bold text-[#796C61] uppercase block mb-1.5">Delivery Shift</label><select value={subSlot} onChange={(e:any)=>setSubSlot(e.target.value)} className="w-full text-xs p-2.5 bg-white border border-[#EBE5D9] rounded-xl outline-none font-bold text-[#2D241E]"><option value="Morning (5-7 AM)">🌅 Morning (5 AM - 7 AM)</option><option value="Evening (5-7 PM)">🌇 Evening (5 PM - 7 PM)</option></select></div>
-                  <div><label className="text-[10px] font-bold text-[#796C61] uppercase block mb-1.5">Instructions</label><select value={subInstruction} onChange={(e:any)=>setSubInstruction(e.target.value)} className="w-full text-xs p-2.5 bg-white border border-[#EBE5D9] rounded-xl outline-none font-bold text-[#2D241E]"><option value="Leave in Bag 🔕">🔕 Leave in Bag (DND)</option><option value="Ring Bell 🔔">🔔 Ring the Bell</option></select></div>
-                </div>
-                <div><label className="text-[11px] font-bold text-[#796C61] uppercase block mb-2">Payment</label><div className="space-y-2"><label className={`p-3.5 rounded-2xl border flex items-start gap-3 ${subPayType === 'scan_deduct' ? 'bg-[#F0EBE1] border-[#1E3F2D]' : 'bg-white border-[#EBE5D9]'}`}><input type="radio" checked={subPayType === 'scan_deduct'} onChange={() => setSubPayType('scan_deduct')} className="mt-0.5 accent-[#1E3F2D]" /><div><div className="text-xs font-bold text-[#2D241E]">📱 Cut after QR Scan</div></div></label><label className={`p-3.5 rounded-2xl border flex items-start gap-3 ${subPayType === 'auto_deduct' ? 'bg-[#F0EBE1] border-[#1E3F2D]' : 'bg-white border-[#EBE5D9]'}`}><input type="radio" checked={subPayType === 'auto_deduct'} onChange={() => setSubPayType('auto_deduct')} className="mt-0.5 accent-[#1E3F2D]" /><div><div className="text-xs font-bold text-[#2D241E]">⚡ Auto-Deduct Wallet</div></div></label></div></div>
-                <div className="pt-2 sticky bottom-0 bg-[#F8F5EE] pb-1"><button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Confirm ➔</button></div>
-              </form>
+          <div className="bg-[#F8F5EE] rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh] animate-slide-up border">
+            <div className="flex justify-between items-center border-b pb-3 mb-4"><h3 className="font-extrabold text-sm">🥛 Subscribe</h3><button type="button" onClick={() => setShowSubscribeModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button></div>
+            <form onSubmit={handleCreateSubscription} className="space-y-5">
+              <div><label className="text-[11px] font-bold text-[#796C61] uppercase block mb-2">Quantity per day</label><div className="flex items-center gap-2">{[1, 2, 3, 5].map((q) => (<button key={q} type="button" onClick={() => setSubQty(q)} className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border ${subQty === q ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'bg-white text-[#2D241E]'}`}>{q}</button>))}</div></div>
+              <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Confirm ➔</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border max-h-[95vh] overflow-y-auto">
+            <div className="flex gap-1 mb-5 bg-white p-1.5 rounded-2xl border shadow-sm"><button type="button" onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'customer' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>Customer</button><button type="button" onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'admin' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>Admin</button></div>
+            <form onSubmit={authRoleTab === 'admin' ? handleAdminLogin : (authView === 'login' ? handlePasswordLogin : handleCustomerSignup)} className="space-y-3.5">
+              {authRoleTab !== 'admin' && authView === 'signup' && (<input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />)}
+              <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />
+              <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />
+              <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">Login / Sign Up</button>
+            </form>
+            <div className="mt-5 pt-3 text-center"><button type="button" onClick={closeModal} className="text-[10px] bg-white border px-4 py-2 rounded-full">Cancel</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ CLEANED EDIT PRODUCT MODAL (RENDERS ONLY ONCE) */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3">
+              <h3 className="font-extrabold text-sm text-[#2D241E]">✏️ Edit Product</h3>
+              <button type="button" onClick={() => setEditingProduct(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9]">✕</button>
             </div>
+            <form onSubmit={handleUpdateProduct} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Product Name</label>
+                <input type="text" value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] text-[#2D241E]" required />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Price (₹)</label>
+                <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] text-[#2D241E]" required />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Category</label>
+                <select value={editingProduct.category} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] text-[#2D241E]">
+                  <option value="Dairy">🥛 Dairy & Milk</option>
+                  <option value="Eggs">🥚 Farm Eggs</option>
+                  <option value="Ghee">🏺 Vedic Ghee</option>
+                  <option value="Farm">🌱 Organic Farm</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold shadow-md mt-2">Update Product ➔</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showCartModal && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border">
+            <div>
+              <div className="flex justify-between items-center pb-3 border-b mb-4"><h3 className="font-extrabold text-sm">🛒 Cart</h3><button type="button" onClick={() => setShowCartModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button></div>
+              {cart.map((item) => (
+                <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border shadow-sm mb-2">
+                  <div className="font-bold text-xs">{item.name}</div>
+                  <div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold">-</button><span className="text-xs font-extrabold w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
+                </div>
+              ))}
+            </div>
+            {cart.length > 0 && (<button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs mt-4">Proceed ➔</button>)}
           </div>
         </div>
       )}
 
       {showScannerModal && selectedDelivery && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] text-center max-h-[95vh] overflow-y-auto">
-            <h3 className="font-extrabold text-sm text-[#2D241E] mb-2">Scan & Deliver</h3><p className="text-[10px] text-[#796C61] font-bold mb-4">To: {selectedDelivery.cust?.name}</p>
-            <div className="w-48 h-48 mx-auto bg-black rounded-2xl border-4 border-[#1E3F2D] border-dashed flex flex-col items-center justify-center mb-4 relative overflow-hidden"><div className="w-full h-1 bg-red-500/60 absolute top-1/2 animate-pulse shadow-[0_0_10px_red]"></div></div>
-            
-            <div className="mb-4">
-              <label className="block text-[10px] font-bold text-[#796C61] mb-1.5 uppercase">📸 Upload Proof of Delivery (Optional)</label>
-              <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="text-[9px] w-full bg-white p-2 rounded-xl border border-[#EBE5D9]" />
-            </div>
-
-            {Number(selectedDelivery.cust?.pending_bottles) > 0 && (<div className="bg-white p-2 rounded-xl border border-[#EBE5D9] mb-4 text-[10px] font-extrabold text-[#B5651D] shadow-sm">🍾 Do not forget to collect {selectedDelivery.cust.pending_bottles} Empty Bottles!</div>)}
-            <button type="button" onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold">Simulate Delivery ✅</button>
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border text-center max-h-[95vh] overflow-y-auto">
+            <h3 className="font-extrabold text-sm mb-2">Scan & Deliver</h3>
+            <button type="button" onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold mt-4">Simulate Delivery ✅</button>
             <button type="button" onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#796C61] py-3 rounded-xl text-xs font-bold mt-2">Cancel</button>
           </div>
         </div>
@@ -1150,14 +988,30 @@ export default function App() {
 
       {showQRModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
-            <h3 className="font-extrabold text-sm text-[#2D241E]">Delivery Identifier QR</h3>
-            <div className="p-5 bg-white rounded-2xl inline-block border border-[#EBE5D9] shadow-sm"><div className="text-6xl">🏁</div><div className="text-xs font-mono font-extrabold mt-3 text-[#1E3F2D] tracking-widest">{currentCustomer?.qrCode}</div></div>
-            <button type="button" onClick={() => setShowQRModal(false)} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#2D241E] text-xs font-bold py-3 rounded-xl mt-2">Close</button>
+          <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border">
+            <h3 className="font-extrabold text-sm">Delivery QR</h3>
+            <div className="text-xs font-mono font-extrabold mt-3">{currentCustomer?.qrCode}</div>
+            <button type="button" onClick={() => setShowQRModal(false)} className="w-full bg-white border py-3 rounded-xl mt-2">Close</button>
           </div>
         </div>
       )}
 
+      {adminViewCustomer && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border max-h-[95vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b">
+              <h3 className="font-extrabold text-sm">Customer Details</h3>
+              <button type="button" onClick={() => setAdminViewCustomer(null)} className="bg-white w-8 h-8 rounded-full border">✕</button>
+            </div>
+            <div className="text-xs space-y-1.5 bg-white p-3 rounded-xl border">
+              <div><strong>Email:</strong> {adminViewCustomer.email}</div>
+              <div><strong>Phone:</strong> {adminViewCustomer.phone}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOTTOM NAV */}
       {user && role === 'customer' && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#F8F5EE]/90 backdrop-blur-xl border border-[#EBE5D9] shadow-[0_8px_30px_rgb(0,0,0,0.1)] z-40 px-4 sm:px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
           <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl bg-[#1E3F2D] text-[#F4F0E6] shadow-md group-active:scale-95"><span className="text-lg leading-none block">🏪</span></div><span className="text-[10px] font-extrabold text-[#1E3F2D] mt-1.5">Store</span></button>
