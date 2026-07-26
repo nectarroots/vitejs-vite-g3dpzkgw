@@ -186,9 +186,9 @@ export default function App() {
   };
 
   const handleForgotPassword = async () => {
-    if (!emailInput) return setLoginError('Enter email to reset.');
+    if (!emailInput) return setLoginError('Enter email to reset password.');
     const { error } = await supabase.auth.resetPasswordForEmail(emailInput);
-    if (error) setLoginError(error.message); else { showToast('Reset link sent! 📧'); setLoginError(''); }
+    if (error) setLoginError(error.message); else { showToast('Reset link sent to your email! 📧'); setLoginError(''); }
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); setRole('guest'); showToast('Securely logged out 👋'); };
@@ -886,7 +886,6 @@ export default function App() {
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
 
-          {/* 🔥 STREAK BADGE */}
           {user && calculateStreak() > 0 && (
             <div className="bg-gradient-to-r from-[#B5651D] to-[#965216] text-white p-3 rounded-2xl shadow-md flex items-center justify-between border border-[#965216]">
               <div className="flex items-center gap-3">
@@ -954,7 +953,7 @@ export default function App() {
         </main>
       )}
 
-      {/* --- ALL MODALS (RENDERED EXACTLY ONCE TO PREVENT CONFLICTS) --- */}
+      {/* --- ALL MODALS --- */}
       
       {orderSuccess && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
@@ -1072,22 +1071,57 @@ export default function App() {
         </div>
       )}
 
+      {/* ✅ LOGIN MODAL WITH RESTORED FORGOT PASSWORD & TOGGLES */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
-          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border max-h-[95vh] overflow-y-auto">
-            <div className="flex gap-1 mb-5 bg-white p-1.5 rounded-2xl border shadow-sm"><button type="button" onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'customer' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>Customer</button><button type="button" onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'admin' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>Admin</button></div>
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
+            <div className="flex gap-1 mb-5 bg-white p-1.5 rounded-2xl border shadow-sm">
+              <button type="button" onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'customer' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>Customer</button>
+              <button type="button" onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'admin' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>Staff/Admin</button>
+            </div>
+            
+            {loginError && <div className="mb-4 text-[10px] text-[#8B0000] bg-[#8B0000]/10 p-2.5 rounded-xl font-medium">{loginError}</div>}
+            
+            {authRoleTab === 'customer' && (
+              <div className="flex gap-4 mb-4 border-b border-[#EBE5D9] pb-2">
+                <button type="button" onClick={() => setAuthView('login')} className={`text-xs font-extrabold transition-all ${authView === 'login' ? 'text-[#1E3F2D] border-b-2 border-[#1E3F2D] pb-1' : 'text-[#796C61]'}`}>Login</button>
+                <button type="button" onClick={() => setAuthView('signup')} className={`text-xs font-extrabold transition-all ${authView === 'signup' ? 'text-[#1E3F2D] border-b-2 border-[#1E3F2D] pb-1' : 'text-[#796C61]'}`}>Sign Up</button>
+              </div>
+            )}
+
             <form onSubmit={authRoleTab === 'admin' ? handleAdminLogin : (authView === 'login' ? handlePasswordLogin : handleCustomerSignup)} className="space-y-3.5">
-              {authRoleTab !== 'admin' && authView === 'signup' && (<input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />)}
+              {authRoleTab !== 'admin' && authView === 'signup' && (
+                <>
+                  <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />
+                  <input type="tel" placeholder="Mobile" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />
+                  <div className="relative">
+                    <textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 pb-8 bg-white rounded-xl border h-16" required />
+                    <button type="button" onClick={captureLocation} className="absolute bottom-2 right-2 text-[9px] font-bold bg-[#F0EBE1] text-[#1E3F2D] px-2 py-1 rounded">📍 GPS</button>
+                  </div>
+                  <input type="text" placeholder="Referral Code (Optional)" value={signupReferral} onChange={(e) => setSignupReferral(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border uppercase" />
+                </>
+              )}
               <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />
               <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border" required />
-              <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">Login / Sign Up</button>
+              
+              {(authRoleTab === 'admin' || authView === 'login') && (
+                <div className="text-right mt-1">
+                  <button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#B5651D] hover:underline font-bold">Forgot Password?</button>
+                </div>
+              )}
+
+              <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">
+                {authRoleTab === 'admin' ? 'Login Securely ➔' : (authView === 'login' ? 'Login ➔' : 'Sign Up ➔')}
+              </button>
             </form>
-            <div className="mt-5 pt-3 text-center"><button type="button" onClick={closeModal} className="text-[10px] bg-white border px-4 py-2 rounded-full">Cancel</button></div>
+            
+            <div className="mt-5 pt-3 text-center">
+              <button type="button" onClick={closeModal} className="text-[10px] bg-white border border-[#EBE5D9] text-[#796C61] font-bold py-2 px-4 rounded-full">Cancel</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ✅ CLEANED EDIT PRODUCT MODAL (RENDERS ONLY ONCE) */}
       {editingProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
