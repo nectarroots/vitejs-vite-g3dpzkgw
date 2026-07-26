@@ -267,6 +267,11 @@ export default function App() {
     showToast(`Added ${product.name}`);
   };
 
+  const handleAddTrialPack = () => {
+    setCart([...cart, { id: 'trial-pack', name: '3-Day A2 Milk Trial Kit', price: 99, unit: 'Kit', icon: '🎁', quantity: 1 }]);
+    showToast(`Trial Kit added to cart!`);
+  };
+
   const handleUpdateCartQuantity = (id: any, delta: number) => setCart(cart.map((item) => String(item.id) === String(id) ? { ...item, quantity: item.quantity + delta > 0 ? item.quantity + delta : 0 } : item).filter(i => i.quantity > 0) as any);
   const getCartQuantity = (id: any) => cart.find((i) => String(i.id) === String(id))?.quantity || 0;
   const getCartTotal = () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -302,7 +307,9 @@ export default function App() {
   const markNotificationsRead = async () => {
     setShowNotifModal(true);
     const unread = notifications.filter(n => n.customer_id === currentCustomer?.id && !n.is_read);
-    if(unread.length > 0) { try { await supabase.from('notifications').update({ is_read: true }).eq('customer_id', currentCustomer?.id); fetchLiveDatabaseData(); } catch(e) {} }
+    if(unread.length > 0) {
+      try { await supabase.from('notifications').update({ is_read: true }).eq('customer_id', currentCustomer?.id); fetchLiveDatabaseData(); } catch(e) {}
+    }
   };
 
   const handleBroadcast = async (e: React.FormEvent) => {
@@ -381,31 +388,31 @@ export default function App() {
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {(role === 'guest' || role === 'customer') && (
-            <button onClick={() => setShowCartModal(true)} className="bg-[#B5651D] hover:bg-[#965216] text-white font-bold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs flex items-center gap-1 shadow-md shadow-[#B5651D]/20 transition active:scale-95">
+            <button type="button" onClick={() => setShowCartModal(true)} className="bg-[#B5651D] hover:bg-[#965216] text-white font-bold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs flex items-center gap-1 shadow-md shadow-[#B5651D]/20 transition active:scale-95">
               <span>🛒</span><span className="hidden sm:inline">Cart</span><span>({getCartCount()})</span>
             </button>
           )}
           
           {(!user || role === 'guest') && (
-            <button onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition"><span className="hidden sm:inline">Login / Signup</span><span className="sm:hidden block">Login</span></button>
+            <button type="button" onClick={() => setShowLoginModal(true)} className="bg-[#F8F5EE]/10 hover:bg-[#F8F5EE]/20 border border-[#F8F5EE]/20 text-[#F4F0E6] font-semibold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition"><span className="hidden sm:inline">Login / Signup</span><span className="sm:hidden block">Login</span></button>
           )}
 
           {user && role === 'customer' && (
             <div className="flex items-center gap-1.5">
               <div className="relative">
-                <button onClick={markNotificationsRead} className="bg-[#F8F5EE]/10 border border-[#F8F5EE]/20 text-[#F4F0E6] w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95">🔔</button>
+                <button type="button" onClick={markNotificationsRead} className="bg-[#F8F5EE]/10 border border-[#F8F5EE]/20 text-[#F4F0E6] w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95">🔔</button>
                 {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[#1E3F2D] animate-bounce">{unreadCount}</span>}
               </div>
 
               {(currentCustomer?.wallet_balance || 0) < 200 && (
                 <span className="text-[10px] bg-[#8B0000] text-white px-2 py-1 rounded-lg font-extrabold animate-pulse hidden sm:inline-block border border-[#5C0000]">Low Bal</span>
               )}
-              <button onClick={() => setShowWalletModal(true)} className={`bg-[#2C523D] hover:bg-[#3A6B50] border ${((currentCustomer?.wallet_balance || 0) < 200) ? 'border-red-500 shadow-[0_0_8px_red]' : 'border-[#3A6B50]'} text-[#F4F0E6] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 transition active:scale-95`}>
+              <button type="button" onClick={() => setShowWalletModal(true)} className={`bg-[#2C523D] hover:bg-[#3A6B50] border ${((currentCustomer?.wallet_balance || 0) < 200) ? 'border-red-500 shadow-[0_0_8px_red]' : 'border-[#3A6B50]'} text-[#F4F0E6] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 transition active:scale-95`}>
                 <span>💳</span><span>₹{currentCustomer?.wallet_balance || 0}</span>
               </button>
             </div>
           )}
-          {user && (role === 'admin' || role === 'delivery') && (<button onClick={handleLogout} className="bg-[#8B0000] hover:bg-[#5C0000] text-white font-bold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition border border-[#5C0000]">Exit</button>)}
+          {user && (role === 'admin' || role === 'delivery') && (<button type="button" onClick={handleLogout} className="bg-[#8B0000] hover:bg-[#5C0000] text-white font-bold px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs transition border border-[#5C0000]">Exit</button>)}
         </div>
       </header>
 
@@ -415,7 +422,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SUPER ADMIN DASHBOARD */}
       {role === 'admin' && (
         <div className="max-w-4xl mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#1E3F2D] to-[#2C523D] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#152E20] flex justify-between items-center">
@@ -424,7 +430,7 @@ export default function App() {
           
           <div className="bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm flex overflow-x-auto no-scrollbar gap-1.5">
             {['overview', 'dispatch', 'broadcast', 'customers', 'products', 'delivery'].map((tab) => (
-              <button key={tab} onClick={() => setAdminTab(tab as any)} className={`py-2 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${adminTab === tab ? 'bg-[#1E3F2D] text-[#F4F0E6] font-bold shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1] font-semibold'} capitalize`}>
+              <button key={tab} type="button" onClick={() => setAdminTab(tab as any)} className={`py-2 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${adminTab === tab ? 'bg-[#1E3F2D] text-[#F4F0E6] font-bold shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1] font-semibold'} capitalize`}>
                 <span>{tab === 'customers' ? '👥' : tab === 'products' ? '📦' : tab === 'dispatch' ? '📝' : tab === 'broadcast' ? '📢' : tab === 'delivery' ? '🛵' : '📊'}</span> {tab}
               </button>
             ))}
@@ -438,7 +444,7 @@ export default function App() {
                 <div className="bg-[#1E3F2D] p-4 rounded-3xl border border-[#152E20] shadow-md text-[#F4F0E6]"><div className="text-[10px] font-bold text-[#A5C0A0] uppercase">Wallet Liabilities</div><div className="text-xl font-extrabold text-white mt-1">₹{customers.reduce((acc, c) => acc + (Number(c.wallet_balance) || 0), 0)}</div></div>
                 <div className="bg-[#B5651D] p-4 rounded-3xl border border-[#965216] shadow-md text-white"><div className="text-[10px] font-bold text-white/80 uppercase">Est. Daily Rev.</div><div className="text-xl font-extrabold mt-1">₹{subscriptions.filter(s => s.status === 'Active').reduce((acc, s) => acc + (Number(s.price) || 0), 0)}</div></div>
               </div>
-              <button onClick={downloadExcelReport} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#1E3F2D] font-extrabold py-3.5 rounded-2xl shadow-sm text-xs flex items-center justify-center gap-2 transition">
+              <button type="button" onClick={downloadExcelReport} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#1E3F2D] font-extrabold py-3.5 rounded-2xl shadow-sm text-xs flex items-center justify-center gap-2 transition">
                 <span className="text-lg">📥</span> Download Monthly Budget & Dispatch (Excel)
               </button>
 
@@ -504,18 +510,18 @@ export default function App() {
                         <div className="text-[11px] font-extrabold text-[#B5651D]">Wallet: ₹{c.wallet_balance || 0}</div>
                         <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-[#EBE5D9]">
                           <span className="text-[10px] font-bold text-[#796C61]">🍾 Pen:</span>
-                          <button onClick={() => handleUpdateBottles(c.id, c.pending_bottles, -1)} className="text-[10px] font-bold px-1.5 bg-[#F8F5EE] rounded">-</button>
+                          <button type="button" onClick={() => handleUpdateBottles(c.id, c.pending_bottles, -1)} className="text-[10px] font-bold px-1.5 bg-[#F8F5EE] rounded">-</button>
                           <span className="text-[11px] font-extrabold text-[#1E3F2D]">{c.pending_bottles || 0}</span>
-                          <button onClick={() => handleUpdateBottles(c.id, c.pending_bottles, 1)} className="text-[10px] font-bold px-1.5 bg-[#F8F5EE] rounded">+</button>
+                          <button type="button" onClick={() => handleUpdateBottles(c.id, c.pending_bottles, 1)} className="text-[10px] font-bold px-1.5 bg-[#F8F5EE] rounded">+</button>
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-1.5 items-end">
-                       <button onClick={() => setAdminViewCustomer(c)} className="bg-white border border-[#EBE5D9] text-[#1E3F2D] text-[10px] px-3 py-1.5 rounded-lg font-bold shadow-sm w-full">View History</button>
-                       <button onClick={() => handleToggleBlockCustomer(c)} className={`${c.is_blocked ? 'bg-[#1E3F2D] text-white' : 'bg-[#8B0000]/10 text-[#8B0000] border-[#8B0000]/20'} text-[10px] px-3 py-1.5 rounded-lg font-bold shadow-sm w-full border`}>{c.is_blocked ? 'Unblock' : 'Block'}</button>
+                       <button type="button" onClick={() => setAdminViewCustomer(c)} className="bg-white border border-[#EBE5D9] text-[#1E3F2D] text-[10px] px-3 py-1.5 rounded-lg font-bold shadow-sm w-full">View History</button>
+                       <button type="button" onClick={() => handleToggleBlockCustomer(c)} className={`${c.is_blocked ? 'bg-[#1E3F2D] text-white' : 'bg-[#8B0000]/10 text-[#8B0000] border-[#8B0000]/20'} text-[10px] px-3 py-1.5 rounded-lg font-bold shadow-sm w-full border`}>{c.is_blocked ? 'Unblock' : 'Block'}</button>
                     </div>
                   </div>
-                  <button onClick={() => handleRecharge(c.id)} className="bg-[#1E3F2D] text-[#F4F0E6] text-[11px] py-2 rounded-xl font-bold w-full shadow-sm active:scale-95">+ Add ₹500 Recharge</button>
+                  <button type="button" onClick={() => handleRecharge(c.id)} className="bg-[#1E3F2D] text-[#F4F0E6] text-[11px] py-2 rounded-xl font-bold w-full shadow-sm active:scale-95">+ Add ₹500 Recharge</button>
                 </div>
               ))}
             </div>
@@ -538,7 +544,7 @@ export default function App() {
               <div className="bg-white p-4 rounded-3xl border border-[#EBE5D9] shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="font-bold text-sm text-[#2D241E]">📦 Live Database Inventory</h2>
-                  <button onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Premium Catalog</button>
+                  <button type="button" onClick={handleSeedProducts} className="bg-[#B5651D] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm active:scale-95 transition hover:bg-[#965216]">🌱 Auto-Add Premium Catalog</button>
                 </div>
                 {products.length === 0 && <div className="text-xs text-center py-8 text-[#796C61] font-medium">Database is empty. Add a product above.</div>}
                 <div className="divide-y divide-[#EBE5D9]">
@@ -552,8 +558,8 @@ export default function App() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={() => handleToggleProductStock(p)} className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition border ${p.is_active ? 'bg-white text-[#8B0000] border-[#8B0000]/20' : 'bg-[#1E3F2D] text-white border-[#1E3F2D]'}`}>{p.is_active ? '🚫 Hide' : '✅ Show'}</button>
-                        <button onClick={() => setEditingProduct(p)} className="bg-[#F0EBE1] text-[#2D241E] font-bold px-2.5 py-1.5 rounded-xl text-[10px] transition">✏️ Edit</button>
+                        <button type="button" onClick={() => handleToggleProductStock(p)} className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition border ${p.is_active ? 'bg-white text-[#8B0000] border-[#8B0000]/20' : 'bg-[#1E3F2D] text-white border-[#1E3F2D]'}`}>{p.is_active ? '🚫 Hide' : '✅ Show'}</button>
+                        <button type="button" onClick={() => setEditingProduct(p)} className="bg-[#F0EBE1] text-[#2D241E] font-bold px-2.5 py-1.5 rounded-xl text-[10px] transition">✏️ Edit</button>
                       </div>
                     </div>
                   ))}
@@ -600,7 +606,7 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
               <h3 className="font-extrabold text-sm text-[#2D241E]">Customer: {adminViewCustomer.name}</h3>
-              <button onClick={() => setAdminViewCustomer(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+              <button type="button" onClick={() => setAdminViewCustomer(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
             </div>
             <div className="text-xs space-y-1.5 bg-white p-3 rounded-xl border border-[#EBE5D9]">
               <div><strong>Email:</strong> {adminViewCustomer.email}</div>
@@ -627,15 +633,14 @@ export default function App() {
         </div>
       )}
 
-      {/* DELIVERY BOY DASHBOARD */}
       {role === 'delivery' && (
         <div className="max-w-md mx-auto p-3.5 sm:p-5 space-y-4">
           <div className="bg-gradient-to-br from-[#B5651D] to-[#965216] text-[#F4F0E6] p-4 sm:p-5 rounded-3xl shadow-lg border border-[#965216] flex justify-between items-center">
             <div><span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase mb-1 inline-block">Agent: {user?.email?.split('@')[0]}</span><h1 className="font-extrabold text-base sm:text-lg text-white">Delivery Portal</h1></div><div className="text-3xl opacity-80">🛵</div>
           </div>
           <div className="bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm grid grid-cols-2 gap-1.5">
-            <button onClick={() => setDeliveryTab('pending')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'pending' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📦 Pending Duties</button>
-            <button onClick={() => setDeliveryTab('history')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'history' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📜 My History</button>
+            <button type="button" onClick={() => setDeliveryTab('pending')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'pending' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📦 Pending Duties</button>
+            <button type="button" onClick={() => setDeliveryTab('history')} className={`py-2 px-3 rounded-xl text-xs transition-all font-bold ${deliveryTab === 'history' ? 'bg-[#1E3F2D] text-[#F4F0E6] shadow-md' : 'text-[#796C61] hover:bg-[#F0EBE1]'}`}>📜 My History</button>
           </div>
 
           {deliveryTab === 'pending' && (
@@ -659,7 +664,7 @@ export default function App() {
                     </div>
 
                     <div className="flex justify-between items-center bg-[#F8F5EE] p-2.5 rounded-xl mb-3 border border-[#EBE5D9]"><div className="text-xs font-bold text-[#1E3F2D]"><span>🥛</span> {sub.product_name}</div><div className="text-xs font-extrabold text-[#B5651D] bg-white px-2 py-0.5 rounded-md border border-[#EBE5D9]">{sub.quantity} qty</div></div>
-                    <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Scan & Deliver</button></div>
+                    <div className="flex justify-between items-center mt-2"><div className="text-[10px] font-bold text-[#796C61]">{sub.payment_type === 'scan_deduct' ? '📱 Scan QR' : '⚡ Auto-Paid'}</div><button type="button" onClick={() => { setSelectedDelivery({...sub, cust}); setShowScannerModal(true); }} className="bg-[#1E3F2D] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95">Scan & Deliver</button></div>
                   </div>
                 );
               })}
@@ -680,7 +685,6 @@ export default function App() {
         </div>
       )}
 
-      {/* STOREFRONT FOR GUEST/CUSTOMER */}
       {(role === 'guest' || role === 'customer') && (
          <main className="max-w-md mx-auto p-3.5 sm:p-4 space-y-5">
           
@@ -690,7 +694,7 @@ export default function App() {
               <div className="font-extrabold text-sm mb-1">🌟 3-Day Trial Kit</div>
               <div className="text-[10px] text-white/80 w-4/5 leading-snug">Test our pure A2 milk & farm freshness before subscribing.</div>
             </div>
-            <button onClick={() => { setCart([...cart, { id: 'trial-pack', name: '3-Day A2 Milk Trial Kit', price: 99, unit: 'Kit', icon: '🎁', quantity: 1 }]); showToast(`Trial Kit added!`); }} className="bg-white text-[#1E3F2D] font-extrabold text-xs px-3 py-2 rounded-xl shadow active:scale-95 shrink-0">@ ₹99 Only</button>
+            <button type="button" onClick={() => { setCart([...cart, { id: 'trial-pack', name: '3-Day A2 Milk Trial Kit', price: 99, unit: 'Kit', icon: '🎁', quantity: 1 }]); showToast(`Trial Kit added!`); }} className="bg-white text-[#1E3F2D] font-extrabold text-xs px-3 py-2 rounded-xl shadow active:scale-95 shrink-0">@ ₹99 Only</button>
           </div>
 
           <div className="relative w-full h-28 sm:h-32 overflow-hidden rounded-3xl shadow-md border border-[#EBE5D9]">
@@ -707,7 +711,7 @@ export default function App() {
 
           <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar px-1">
             {['All', 'Dairy', 'Eggs', 'Ghee', 'Farm'].map((cat) => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${selectedCategory === cat ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D] shadow-md' : 'bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]'}`}>{cat}</button>
+              <button key={cat} type="button" onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${selectedCategory === cat ? 'bg-[#1E3F2D] text-[#F4F0E6] border-[#1E3F2D] shadow-md' : 'bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]'}`}>{cat}</button>
             ))}
           </div>
 
@@ -723,10 +727,10 @@ export default function App() {
                     <div className={`text-sm font-extrabold mt-1.5 ${p.is_active ? 'text-[#B5651D]' : 'text-gray-400'}`}>₹{p.price} <span className="text-[10px] font-medium text-[#796C61]">/ {p.unit}</span></div>
                   </div>
                   <div className="mt-4 space-y-2">
-                    <button disabled={!p.is_active} onClick={() => { setSelectedSubProduct(p); setShowSubscribeModal(true); }} className={`w-full font-bold py-2 rounded-xl text-[11px] border ${p.is_active ? 'bg-[#F8F5EE] hover:bg-[#F0EBE1] text-[#1E3F2D] border-[#EBE5D9] transition-colors' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>📅 Subscribe</button>
+                    <button type="button" disabled={!p.is_active} onClick={() => { setSelectedSubProduct(p); setShowSubscribeModal(true); }} className={`w-full font-bold py-2 rounded-xl text-[11px] border ${p.is_active ? 'bg-[#F8F5EE] hover:bg-[#F0EBE1] text-[#1E3F2D] border-[#EBE5D9] transition-colors' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>📅 Subscribe</button>
                     {qtyInCart > 0 ? (
-                      <div className="flex items-center justify-between bg-white rounded-xl p-1 border border-[#1E3F2D] shadow-sm"><button onClick={() => handleUpdateCartQuantity(p.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold text-[#2D241E]">-</button><span className="text-xs font-extrabold text-[#1E3F2D]">{qtyInCart}</span><button onClick={() => handleUpdateCartQuantity(p.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
-                    ) : (<button disabled={!p.is_active} onClick={() => handleAddToCart(p)} className={`w-full font-bold py-2 rounded-xl text-xs shadow-md ${p.is_active ? 'bg-[#1E3F2D] text-[#F4F0E6] active:scale-95' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>🛒 Add</button>)}
+                      <div className="flex items-center justify-between bg-white rounded-xl p-1 border border-[#1E3F2D] shadow-sm"><button type="button" onClick={() => handleUpdateCartQuantity(p.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold text-[#2D241E]">-</button><span className="text-xs font-extrabold text-[#1E3F2D]">{qtyInCart}</span><button type="button" onClick={() => handleUpdateCartQuantity(p.id, 1)} className="w-7 h-7 bg-[#1E3F2D] text-[#F4F0E6] rounded-lg font-bold">+</button></div>
+                    ) : (<button type="button" disabled={!p.is_active} onClick={() => handleAddToCart(p)} className={`w-full font-bold py-2 rounded-xl text-xs shadow-md ${p.is_active ? 'bg-[#1E3F2D] text-[#F4F0E6] active:scale-95' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>🛒 Add</button>)}
                   </div>
                 </div>
               );
@@ -740,7 +744,7 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
               <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🔔 Notifications</span></h3>
-              <button onClick={() => setShowNotifModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+              <button type="button" onClick={() => setShowNotifModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
             </div>
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
               {userNotifications.length === 0 ? (
@@ -763,7 +767,7 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
               <h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>💳 Wallet & Passbook</span></h3>
-              <button onClick={() => setShowWalletModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+              <button type="button" onClick={() => setShowWalletModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
             </div>
             
             {(currentCustomer?.wallet_balance || 0) < 200 && (
@@ -786,7 +790,7 @@ export default function App() {
                 <div className="flex items-center gap-2 mb-2"><span className="text-xl">🎁</span><div><div className="font-extrabold text-xs">Refer & Earn ₹100</div><div className="text-[9px] text-white/80">Get ₹100 when a friend signs up with your code.</div></div></div>
                 <div className="bg-white/20 px-3 py-2 rounded-xl flex justify-between items-center border border-white/30">
                   <span className="font-mono text-sm font-extrabold tracking-widest">{currentCustomer.referral_code}</span>
-                  <button onClick={() => {navigator.clipboard.writeText(currentCustomer.referral_code); showToast('Code Copied!');}} className="text-[10px] font-bold bg-white text-[#965216] px-2 py-1 rounded">Copy</button>
+                  <button type="button" onClick={() => {navigator.clipboard.writeText(currentCustomer.referral_code); showToast('Code Copied!');}} className="text-[10px] font-bold bg-white text-[#965216] px-2 py-1 rounded">Copy</button>
                 </div>
               </div>
             )}
@@ -830,7 +834,7 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9]">
               <h3 className="font-extrabold text-sm text-[#2D241E]">📦 My Orders & Subs</h3>
-              <button onClick={() => setShowOrdersModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
+              <button type="button" onClick={() => setShowOrdersModal(false)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button>
             </div>
             
             <div className="space-y-5">
@@ -860,7 +864,9 @@ export default function App() {
                           </div>
                           
                           {s.status === 'Paused' ? (
-                            <button onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-[#1E3F2D] text-white border-[#1E3F2D] shadow-sm">▶ Resume</button>
+                            <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-[#1E3F2D] text-white border-[#1E3F2D] shadow-sm">
+                              ▶ Resume
+                            </button>
                           ) : (
                             showVacationForm === s.id ? (
                               <div className="flex flex-col gap-1.5 items-end">
@@ -868,12 +874,14 @@ export default function App() {
                                 <span className="text-[8px] font-bold text-[#796C61]">TO</span>
                                 <input type="date" value={vacationEnd} onChange={(e)=>setVacationEnd(e.target.value)} className="text-[9px] px-1.5 py-1 rounded border border-[#EBE5D9]" required/>
                                 <div className="flex gap-1 mt-1">
-                                  <button onClick={() => setShowVacationForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">Cancel</button>
-                                  <button onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[9px] bg-[#8B0000] text-white px-2 py-1 rounded font-bold">Confirm</button>
+                                  <button type="button" onClick={() => setShowVacationForm(null)} className="text-[9px] bg-white border border-[#EBE5D9] px-2 py-1 rounded">Cancel</button>
+                                  <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[9px] bg-[#8B0000] text-white px-2 py-1 rounded font-bold">Confirm</button>
                                 </div>
                               </div>
                             ) : (
-                              <button onClick={() => setShowVacationForm(s.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]">⏸ Pause</button>
+                              <button type="button" onClick={() => setShowVacationForm(s.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all bg-white text-[#796C61] border-[#EBE5D9] hover:bg-[#F0EBE1]">
+                                ⏸ Pause
+                              </button>
                             )
                           )}
                         </div>
@@ -913,7 +921,7 @@ export default function App() {
            <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
               <div className="flex justify-between items-start mb-4">
                  <div className="w-16 h-16 bg-white border border-[#EBE5D9] rounded-2xl flex items-center justify-center text-4xl shadow-sm">{viewProduct.icon}</div>
-                 <button onClick={() => setViewProduct(null)} className="bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center font-bold text-[#796C61]">✕</button>
+                 <button type="button" onClick={() => setViewProduct(null)} className="bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center font-bold text-[#796C61]">✕</button>
               </div>
               <h3 className="font-extrabold text-lg text-[#2D241E]">{viewProduct.name}</h3>
               <div className="text-lg font-extrabold text-[#B5651D] mt-1">₹{viewProduct.price} <span className="text-xs text-[#796C61] font-medium">/ {viewProduct.unit}</span></div>
@@ -926,7 +934,7 @@ export default function App() {
                     <div className="text-xl">🛵</div><div><div className="text-xs font-bold text-[#2D241E]">Morning Delivery Guaranteed</div><div className="text-[10px] text-[#796C61] mt-0.5">Delivered fresh before 7:00 AM daily.</div></div>
                  </div>
               </div>
-              <button onClick={() => setViewProduct(null)} className="w-full bg-[#1E3F2D] text-white font-bold py-3.5 rounded-xl text-xs mt-5 active:scale-95 transition">Close Information</button>
+              <button type="button" onClick={() => setViewProduct(null)} className="w-full bg-[#1E3F2D] text-white font-bold py-3.5 rounded-xl text-xs mt-5 active:scale-95 transition">Close Information</button>
            </div>
         </div>
       )}
@@ -934,7 +942,7 @@ export default function App() {
       {showSubscribeModal && selectedSubProduct && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh] animate-slide-up border border-[#EBE5D9]">
-            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3 mb-4 shrink-0"><h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🥛 Sub Preferences</span></h3><button onClick={() => setShowSubscribeModal(false)} className="text-[#796C61] font-bold text-lg bg-white w-8 h-8 rounded-full flex items-center justify-center border border-[#EBE5D9]">✕</button></div>
+            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3 mb-4 shrink-0"><h3 className="font-extrabold text-sm text-[#2D241E] flex items-center gap-2"><span>🥛 Sub Preferences</span></h3><button type="button" onClick={() => setShowSubscribeModal(false)} className="text-[#796C61] font-bold text-lg bg-white w-8 h-8 rounded-full flex items-center justify-center border border-[#EBE5D9]">✕</button></div>
             <div className="overflow-y-auto pr-1 space-y-5 pb-2">
               <div className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] flex items-center gap-3 shadow-sm"><span className="text-3xl bg-[#F8F5EE] w-12 h-12 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{selectedSubProduct.icon || '🌿'}</span><div><div className="font-extrabold text-xs text-[#2D241E]">{selectedSubProduct.name}</div><div className="text-xs font-bold text-[#B5651D] mt-0.5">₹{selectedSubProduct.price} / {selectedSubProduct.unit}</div></div></div>
               <form onSubmit={handleCreateSubscription} className="space-y-5">
@@ -952,20 +960,94 @@ export default function App() {
         </div>
       )}
 
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
+            <div className="flex gap-1 mb-5 bg-white p-1.5 rounded-2xl border border-[#EBE5D9] shadow-sm"><button type="button" onClick={() => setAuthRoleTab('customer')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'customer' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>👤 Customer</button><button type="button" onClick={() => setAuthRoleTab('admin')} className={`w-1/2 py-2 text-xs font-bold rounded-xl ${authRoleTab === 'admin' ? 'bg-[#1E3F2D] text-[#F4F0E6]' : 'text-[#796C61]'}`}>🛡️ Staff/Admin</button></div>
+            {loginError && <div className="mb-4 text-[10px] text-[#8B0000] bg-[#8B0000]/10 p-2.5 rounded-xl font-medium">{loginError}</div>}
+            
+            {authRoleTab === 'admin' ? (
+              <form onSubmit={handleAdminLogin} className="space-y-3.5">
+                <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                <div className="text-right mt-1"><button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#796C61] hover:text-[#2D241E] font-bold">Forgot Password?</button></div>
+                <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">Login Securely ➔</button>
+              </form>
+            ) : (
+              <div>
+                <div className="flex gap-4 mb-4 border-b border-[#EBE5D9]">
+                  <button type="button" onClick={() => setAuthView('login')} className={`pb-2 text-xs font-extrabold transition-all ${authView === 'login' ? 'text-[#1E3F2D] border-b-2 border-[#1E3F2D]' : 'text-[#796C61] hover:text-[#2D241E]'}`}>Login</button>
+                  <button type="button" onClick={() => setAuthView('signup')} className={`pb-2 text-xs font-extrabold transition-all ${authView === 'signup' ? 'text-[#1E3F2D] border-b-2 border-[#1E3F2D]' : 'text-[#796C61] hover:text-[#2D241E]'}`}>Sign Up</button>
+                </div>
+
+                <form onSubmit={authView === 'login' ? handlePasswordLogin : handleCustomerSignup} className="space-y-3.5">
+                  {authView === 'signup' && (
+                    <>
+                      <input type="text" placeholder="Full Name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                      <input type="tel" placeholder="Mobile" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                      <textarea placeholder="Address" value={signupAddress} onChange={(e) => setSignupAddress(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] h-16" required />
+                      <input type="text" placeholder="Referral Code (Optional)" value={signupReferral} onChange={(e) => setSignupReferral(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9] uppercase" />
+                    </>
+                  )}
+                  <input type="email" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                  <input type="password" placeholder="Password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full text-xs p-3 bg-white rounded-xl border border-[#EBE5D9]" required />
+                  
+                  {authView === 'login' && (<div className="text-right mt-1"><button type="button" onClick={handleForgotPassword} className="text-[10px] text-[#B5651D] hover:underline font-bold">Forgot Password?</button></div>)}
+
+                  <button type="submit" className="w-full bg-[#1E3F2D] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold mt-2">{authView === 'login' ? 'Login ➔' : 'Sign Up ➔'}</button>
+                </form>
+              </div>
+            )}
+            <div className="mt-5 pt-3 text-center"><button type="button" onClick={closeModal} className="text-[10px] bg-white border border-[#EBE5D9] text-[#796C61] font-bold py-2 px-4 rounded-full">Cancel</button></div>
+          </div>
+        </div>
+      )}
+
+      {editingProduct && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
+          <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-3">
+              <h3 className="font-extrabold text-sm text-[#2D241E]">✏️ Edit Product</h3>
+              <button type="button" onClick={() => setEditingProduct(null)} className="text-[#796C61] hover:text-[#2D241E] font-bold bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-[#EBE5D9] transition">✕</button>
+            </div>
+            <form onSubmit={handleUpdateProduct} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Product Name</label>
+                <input type="text" value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Price (₹)</label>
+                <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]" required />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-[#796C61] uppercase tracking-wide">Category</label>
+                <select value={editingProduct.category} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full text-xs p-3 bg-white border border-[#EBE5D9] rounded-xl mt-1.5 focus:outline-none focus:border-[#1E3F2D] transition text-[#2D241E]">
+                  <option value="Dairy">🥛 Dairy & Milk</option>
+                  <option value="Eggs">🥚 Farm Eggs</option>
+                  <option value="Ghee">🏺 Vedic Ghee</option>
+                  <option value="Farm">🌱 Organic Farm</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-[#1E3F2D] hover:bg-[#152E20] text-[#F4F0E6] text-xs py-3.5 rounded-xl font-extrabold transition shadow-md mt-2">Update Product ➔</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showCartModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-4 sm:p-5 max-w-sm w-full shadow-2xl flex flex-col justify-between max-h-[85vh] border border-[#EBE5D9]">
             <div>
-              <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9] mb-4"><h3 className="font-extrabold text-sm text-[#2D241E]">🛒 Cart</h3><button onClick={() => setShowCartModal(false)} className="text-[#796C61] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button></div>
+              <div className="flex justify-between items-center pb-3 border-b border-[#EBE5D9] mb-4"><h3 className="font-extrabold text-sm text-[#2D241E]">🛒 Cart</h3><button type="button" onClick={() => setShowCartModal(false)} className="text-[#796C61] font-bold bg-white w-8 h-8 rounded-full border border-[#EBE5D9] flex items-center justify-center">✕</button></div>
               {cart.length === 0 ? (<div className="py-12 text-center space-y-4"><p className="text-sm font-bold text-[#796C61]">Your cart is empty!</p></div>) : (
                 <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
                   {cart.map((item) => (
-                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border border-[#EBE5D9] shadow-sm"><div className="flex items-center gap-3"><span className="text-2xl bg-[#F8F5EE] w-10 h-10 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{item.icon}</span><div><div className="font-bold text-xs text-[#2D241E]">{item.name}</div><div className="text-[11px] text-[#796C61] font-medium mt-0.5">₹{item.price} | <span className="font-extrabold text-[#B5651D]">₹{item.price * item.quantity}</span></div></div></div><div className="flex items-center gap-2"><button onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold text-[#2D241E]">-</button><span className="text-xs font-extrabold text-[#2D241E] w-3 text-center">{item.quantity}</span><button onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] rounded-lg font-bold text-[#F4F0E6]">+</button></div></div>
+                    <div key={item.id} className="p-3 bg-white rounded-2xl flex items-center justify-between border border-[#EBE5D9] shadow-sm"><div className="flex items-center gap-3"><span className="text-2xl bg-[#F8F5EE] w-10 h-10 rounded-xl flex items-center justify-center border border-[#EBE5D9]">{item.icon}</span><div><div className="font-bold text-xs text-[#2D241E]">{item.name}</div><div className="text-[11px] text-[#796C61] font-medium mt-0.5">₹{item.price} | <span className="font-extrabold text-[#B5651D]">₹{item.price * item.quantity}</span></div></div></div><div className="flex items-center gap-2"><button type="button" onClick={() => handleUpdateCartQuantity(item.id, -1)} className="w-7 h-7 bg-[#F8F5EE] rounded-lg font-bold text-[#2D241E]">-</button><span className="text-xs font-extrabold text-[#2D241E] w-3 text-center">{item.quantity}</span><button type="button" onClick={() => handleUpdateCartQuantity(item.id, 1)} className="w-7 h-7 bg-[#1E3F2D] rounded-lg font-bold text-[#F4F0E6]">+</button></div></div>
                   ))}
                 </div>
               )}
             </div>
-            {cart.length > 0 && (<div className="pt-4 border-t border-[#EBE5D9] mt-4 space-y-3"><div className="flex justify-between items-center text-xs font-bold text-[#796C61] uppercase"><span>Total</span><span className="text-[#1E3F2D] text-lg font-extrabold">₹{getCartTotal()}</span></div><button onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Proceed ➔</button></div>)}
+            {cart.length > 0 && (<div className="pt-4 border-t border-[#EBE5D9] mt-4 space-y-3"><div className="flex justify-between items-center text-xs font-bold text-[#796C61] uppercase"><span>Total</span><span className="text-[#1E3F2D] text-lg font-extrabold">₹{getCartTotal()}</span></div><button type="button" onClick={handleCheckout} className="w-full bg-[#1E3F2D] text-[#F4F0E6] font-extrabold py-3.5 rounded-xl text-xs">Proceed ➔</button></div>)}
           </div>
         </div>
       )}
@@ -976,8 +1058,8 @@ export default function App() {
             <h3 className="font-extrabold text-sm text-[#2D241E] mb-2">Scan Customer QR</h3><p className="text-[10px] text-[#796C61] font-bold mb-4">For: {selectedDelivery.cust?.name}</p>
             <div className="w-48 h-48 mx-auto bg-black rounded-2xl border-4 border-[#1E3F2D] border-dashed flex flex-col items-center justify-center mb-4 relative overflow-hidden"><div className="w-full h-1 bg-red-500/60 absolute top-1/2 animate-pulse shadow-[0_0_10px_red]"></div></div>
             {Number(selectedDelivery.cust?.pending_bottles) > 0 && (<div className="bg-white p-2 rounded-xl border border-[#EBE5D9] mb-4 text-[10px] font-extrabold text-[#B5651D] shadow-sm">🍾 Do not forget to collect {selectedDelivery.cust.pending_bottles} Empty Bottles!</div>)}
-            <button onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold">Simulate Scan ✅</button>
-            <button onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#796C61] py-3 rounded-xl text-xs font-bold mt-2">Cancel</button>
+            <button type="button" onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold">Simulate Scan ✅</button>
+            <button type="button" onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#796C61] py-3 rounded-xl text-xs font-bold mt-2">Cancel</button>
           </div>
         </div>
       )}
@@ -987,17 +1069,17 @@ export default function App() {
           <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
             <h3 className="font-extrabold text-sm text-[#2D241E]">Delivery Identifier QR</h3>
             <div className="p-5 bg-white rounded-2xl inline-block border border-[#EBE5D9] shadow-sm"><div className="text-6xl">🏁</div><div className="text-xs font-mono font-extrabold mt-3 text-[#1E3F2D] tracking-widest">{currentCustomer?.qrCode}</div></div>
-            <button onClick={() => setShowQRModal(false)} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#2D241E] text-xs font-bold py-3 rounded-xl mt-2">Close</button>
+            <button type="button" onClick={() => setShowQRModal(false)} className="w-full bg-white border border-[#EBE5D9] hover:bg-[#F0EBE1] text-[#2D241E] text-xs font-bold py-3 rounded-xl mt-2">Close</button>
           </div>
         </div>
       )}
 
       {user && role === 'customer' && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-[#F8F5EE]/90 backdrop-blur-xl border border-[#EBE5D9] shadow-[0_8px_30px_rgb(0,0,0,0.1)] z-40 px-4 sm:px-6 py-2.5 flex justify-between items-center rounded-3xl transition-all duration-300">
-          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl bg-[#1E3F2D] text-[#F4F0E6] shadow-md group-active:scale-95"><span className="text-lg leading-none block">🏪</span></div><span className="text-[10px] font-extrabold text-[#1E3F2D] mt-1.5">Store</span></button>
-          <button onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#F0EBE1] group-hover:text-[#1E3F2D]"><span className="text-lg leading-none block">📦</span></div><span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#1E3F2D] mt-1.5">Orders</span></button>
-          <button onClick={() => setShowQRModal(true)} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#F0EBE1] group-hover:text-[#1E3F2D]"><span className="text-lg leading-none block">📱</span></div><span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#1E3F2D] mt-1.5">QR Pass</span></button>
-          <button onClick={handleLogout} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#8B0000]/10 group-hover:text-[#8B0000]"><span className="text-lg leading-none block">🚪</span></div><span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#8B0000] mt-1.5">Logout</span></button>
+          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl bg-[#1E3F2D] text-[#F4F0E6] shadow-md group-active:scale-95"><span className="text-lg leading-none block">🏪</span></div><span className="text-[10px] font-extrabold text-[#1E3F2D] mt-1.5">Store</span></button>
+          <button type="button" onClick={() => setShowOrdersModal(true)} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#F0EBE1] group-hover:text-[#1E3F2D]"><span className="text-lg leading-none block">📦</span></div><span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#1E3F2D] mt-1.5">Orders</span></button>
+          <button type="button" onClick={() => setShowQRModal(true)} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#F0EBE1] group-hover:text-[#1E3F2D]"><span className="text-lg leading-none block">📱</span></div><span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#1E3F2D] mt-1.5">QR Pass</span></button>
+          <button type="button" onClick={handleLogout} className="flex flex-col items-center group relative"><div className="p-2 rounded-2xl text-[#796C61] group-hover:bg-[#8B0000]/10 group-hover:text-[#8B0000]"><span className="text-lg leading-none block">🚪</span></div><span className="text-[10px] font-bold text-[#796C61] group-hover:text-[#8B0000] mt-1.5">Logout</span></button>
         </div>
       )}
     </div>
