@@ -91,14 +91,29 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
     });
+    
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) { setUser(session.user); assignRoleByEmail(session.user.email); }
       else { setUser(null); setRole('guest'); }
     });
+    
     fetchLiveDatabaseData();
 
     const bannerTimer = setInterval(() => { setCurrentBanner((prev) => (prev + 1) % 2); }, 4000);
-    return () => { authListener.subscription.unsubscribe(); clearInterval(bannerTimer); };
+
+    const realtimeChannel = supabase
+      .channel('live-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchLiveDatabaseData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchLiveDatabaseData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => fetchLiveDatabaseData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => fetchLiveDatabaseData())
+      .subscribe();
+
+    return () => { 
+      authListener.subscription.unsubscribe(); 
+      clearInterval(bannerTimer); 
+      supabase.removeChannel(realtimeChannel); 
+    };
   }, []);
 
   const assignRoleByEmail = (email: string | undefined) => {
@@ -259,6 +274,7 @@ export default function App() {
     }
   };
 
+  // ✅ CHANGE 2: Updated handleMarkDelivered to handle Pre-Paid One-Time Orders safely
   const handleMarkDelivered = async (delivery: any) => {
     if (!delivery || !delivery.cust) return;
     const cust = delivery.cust;
@@ -282,13 +298,29 @@ export default function App() {
         if (Number(cust.wallet_balance) < amountToDeduct) return showToast(`Failed: Low balance! (₹${cust.wallet_balance})`, 'error');
         await supabase.from('customers').update({ wallet_balance: Number(cust.wallet_balance) - amountToDeduct }).eq('id', cust.id);
         await supabase.from('transactions').insert([payload]);
+      } else if (delivery.payment_type === 'pre-paid') {
+        // Money was already deducted at checkout. Just log zero-amount delivery event.
+        payload.amount = 0;
+        payload.item = `Delivered (Pre-paid Cart Order): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`;
+        await supabase.from('transactions').insert([payload]);
       } else {
         payload.amount = 0;
         payload.item = `Delivery (Auto-paid): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`;
         await supabase.from('transactions').insert([payload]);
       }
+
+      // Notification
       try { await supabase.from('notifications').insert([{ customer_id: cust.id, message: `Your ${delivery.product_name} was delivered! 📸`, is_read: false }]); } catch(e) {}
-      fetchLiveDatabaseData(); setShowScannerModal(false); setProofImage(null); showToast(`Delivered to ${cust.name}! ✅`);
+      
+      // If it was a One-Time cart order, mark it as Completed so it doesn't show up tomorrow
+      if (delivery.frequency === 'One-Time') {
+        await supabase.from('subscriptions').update({ status: 'Completed' }).eq('id', delivery.id);
+      }
+
+      fetchLiveDatabaseData(); 
+      setShowScannerModal(false); 
+      setProofImage(null); 
+      showToast(`Delivered to ${cust.name}! ✅`);
     } catch (err: any) { alert("Delivery Error: " + err.message); }
   };
 
@@ -370,6 +402,7 @@ export default function App() {
   const getCartTotal = () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const getCartCount = () => cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // ✅ CHANGE 1: Checkout ab Cart Orders ko bhi "Subscriptions" table mein bhejega as "One-Time"
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     if (!user || role === 'guest') { setShowCartModal(false); setShowLoginModal(true); return showToast('Please login to checkout!', 'error'); }
@@ -382,9 +415,33 @@ export default function App() {
 
     try {
       await supabase.from('customers').update({ wallet_balance: balance - total }).eq('id', activeCustomer.id);
-      const newTxs = cart.map((item) => ({ customer_name: activeCustomer.name, item: `Store Order: ${item.name}`, amount: item.price * item.quantity }));
+      
+      const newTxs: any[] = [];
+      const newOneTimeOrders: any[] = []; // NectarRoots Startup Hack
+
+      cart.forEach((item) => {
+        newTxs.push({ customer_name: activeCustomer.name, item: `Store Order (Paid): ${item.name}`, amount: item.price * item.quantity });
+        
+        // Agent ke page ke liye order generate karna
+        newOneTimeOrders.push({
+          customer_id: activeCustomer.id,
+          customer_name: activeCustomer.name,
+          product_name: item.name,
+          quantity: item.quantity,
+          price: item.price * item.quantity,
+          frequency: 'One-Time', // Agent ko pata chalega ye cart wala order hai
+          payment_type: 'pre-paid', // Paise nahi katne dubara
+          status: 'Active', 
+          delivery_slot: 'Morning (5-7 AM)',
+          delivery_instruction: 'Leave in Bag 🔕',
+          modifications: {}
+        });
+      });
+
       if (appliedDiscount > 0) newTxs.push({ customer_name: activeCustomer.name, item: `Discount Applied (${promoInput.toUpperCase()})`, amount: -appliedDiscount });
+      
       await supabase.from('transactions').insert(newTxs);
+      await supabase.from('subscriptions').insert(newOneTimeOrders); // Inject into delivery pipeline
       
       fetchLiveDatabaseData(); 
       setCart([]); 
@@ -988,7 +1045,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ✅ CHANGE: WALLET / PASSBOOK MODAL (Date, Time, Credit/Debit) */}
       {showWalletModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
@@ -1036,7 +1092,6 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* END OF PASSBOOK CHANGE */}
 
       {showOrdersModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
@@ -1046,16 +1101,23 @@ export default function App() {
               <button type="button" onClick={() => setShowOrdersModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
             <div className="space-y-3">
-               {subscriptions.filter(s => s.customer_id === currentCustomer?.id).length === 0 ? (
+               {/* Hide completed one-time orders from this list to keep it clean */}
+               {subscriptions.filter(s => s.customer_id === currentCustomer?.id && s.status !== 'Completed').length === 0 ? (
                  <div className="text-center py-6 text-[10px] text-[#796C61]">No active orders.</div>
                ) : (
-                 subscriptions.filter(s => s.customer_id === currentCustomer?.id).map((s, idx) => (
+                 subscriptions.filter(s => s.customer_id === currentCustomer?.id && s.status !== 'Completed').map((s, idx) => (
                     <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
-                      <div className="font-extrabold text-[#1E3F2D]">{s.product_name} ({s.quantity})</div>
-                      {s.status === 'Paused' ? (
-                         <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
-                      ) : (
-                         <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
+                      <div className="font-extrabold text-[#1E3F2D]">
+                        {s.product_name} ({s.quantity}) 
+                        {s.frequency === 'One-Time' && <span className="ml-2 text-[8px] bg-[#B5651D] text-white px-1.5 py-0.5 rounded uppercase">One-Time</span>}
+                      </div>
+                      
+                      {s.frequency !== 'One-Time' && (
+                        s.status === 'Paused' ? (
+                           <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
+                        ) : (
+                           <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
+                        )
                       )}
                     </div>
                  ))
