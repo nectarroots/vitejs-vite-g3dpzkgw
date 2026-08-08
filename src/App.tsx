@@ -414,23 +414,24 @@ export default function App() {
     if (balance < total) return showToast(`Low Balance! Wallet: ₹${balance}`, 'error');
 
     try {
+      // 1. Wallet se paise deduct karna
       await supabase.from('customers').update({ wallet_balance: balance - total }).eq('id', activeCustomer.id);
       
       const newTxs: any[] = [];
-      const newOneTimeOrders: any[] = []; // NectarRoots Startup Hack
+      const newOneTimeOrders: any[] = [];
 
       cart.forEach((item) => {
         newTxs.push({ customer_name: activeCustomer.name, item: `Store Order (Paid): ${item.name}`, amount: item.price * item.quantity });
         
-        // Agent ke page ke liye order generate karna
+        // 2. Agent ki list ke liye Order banana
         newOneTimeOrders.push({
           customer_id: activeCustomer.id,
           customer_name: activeCustomer.name,
           product_name: item.name,
           quantity: item.quantity,
           price: item.price * item.quantity,
-          frequency: 'One-Time', // Agent ko pata chalega ye cart wala order hai
-          payment_type: 'pre-paid', // Paise nahi katne dubara
+          frequency: 'One-Time', // Agent aur system ko pata chalega ki ye one-time hai
+          payment_type: 'auto_deduct', // ✅ Database error bachane ke liye isko auto_deduct kar diya (kyunki paise pehle hi kat chuke hain)
           status: 'Active', 
           delivery_slot: 'Morning (5-7 AM)',
           delivery_instruction: 'Leave in Bag 🔕',
@@ -440,8 +441,13 @@ export default function App() {
 
       if (appliedDiscount > 0) newTxs.push({ customer_name: activeCustomer.name, item: `Discount Applied (${promoInput.toUpperCase()})`, amount: -appliedDiscount });
       
+      // 3. Database mein Transaction aur Delivery Order dono save karna
       await supabase.from('transactions').insert(newTxs);
-      await supabase.from('subscriptions').insert(newOneTimeOrders); // Inject into delivery pipeline
+      
+      const { error: subErr } = await supabase.from('subscriptions').insert(newOneTimeOrders);
+      if (subErr) {
+        alert("Delivery assign hone mein error: " + subErr.message);
+      }
       
       fetchLiveDatabaseData(); 
       setCart([]); 
@@ -451,7 +457,7 @@ export default function App() {
       setOrderSuccess(true);
     } catch (e: any) { alert('Checkout failed: ' + e.message); }
   };
-
+  
   const handleRecharge = async (custId: string) => {
     const cust = customers.find((c) => String(c.id) === String(custId));
     if (!cust) return;
