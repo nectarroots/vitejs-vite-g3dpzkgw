@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient'; 
 import { QRCodeSVG } from 'qrcode.react';
-import { Scanner } from '@yudiel/react-qr-scanner'; // ✅ Naya Camera Scanner Import
+import { Scanner } from '@yudiel/react-qr-scanner'; 
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -988,6 +988,7 @@ export default function App() {
         </div>
       )}
 
+      {/* ✅ CHANGE: WALLET / PASSBOOK MODAL (Date, Time, Credit/Debit) */}
       {showWalletModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-[#EBE5D9] animate-slide-up max-h-[95vh] overflow-y-auto">
@@ -999,17 +1000,43 @@ export default function App() {
               <div className="text-[10px] font-bold text-[#A5C0A0] uppercase tracking-widest">Current Balance</div>
               <div className="text-4xl font-extrabold mt-1 tracking-tight">₹{currentCustomer?.wallet_balance || 0}</div>
             </div>
-            <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-1">
-              {transactions.filter(t => t.customer_name === currentCustomer?.name).map((t, idx) => (
-                <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] text-xs flex justify-between items-center shadow-sm">
-                  <div className="font-bold text-[#2D241E]">{t.item.split(' [Agent:')[0]}</div>
-                  <div className="font-extrabold">₹{t.amount}</div>
-                </div>
-              ))}
+            <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+              {transactions.filter(t => t.customer_name === currentCustomer?.name).length === 0 ? (
+                <div className="text-center py-6 text-[10px] text-[#796C61]">No transactions yet.</div>
+              ) : (
+                transactions.filter(t => t.customer_name === currentCustomer?.name).map((t, idx) => {
+                  const dateObj = new Date(t.created_at || Date.now());
+                  const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                  const timeStr = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  const isCredit = String(t.item).toLowerCase().includes('recharge') || String(t.item).toLowerCase().includes('bonus') || t.amount < 0;
+                  const displayAmount = Math.abs(t.amount);
+
+                  return (
+                    <div key={idx} className="p-3 bg-white rounded-2xl border border-[#EBE5D9] flex flex-col gap-2 shadow-sm">
+                      <div className="flex justify-between items-center border-b border-[#EBE5D9] pb-1.5">
+                        <div className="text-[10px] font-bold text-[#796C61] flex gap-2">
+                          <span>📅 {dateStr}</span>
+                          <span>⏰ {timeStr}</span>
+                        </div>
+                        <div className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${isCredit ? 'bg-[#1E3F2D]/10 text-[#1E3F2D]' : 'bg-[#8B0000]/10 text-[#8B0000]'}`}>
+                          {isCredit ? 'CREDIT' : 'DEBIT'}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pt-0.5">
+                        <div className="font-bold text-xs text-[#2D241E] w-3/4 pr-2 truncate">{t.item.split(' [Agent:')[0]}</div>
+                        <div className={`font-extrabold text-sm ${isCredit ? 'text-[#1E3F2D]' : 'text-[#8B0000]'}`}>
+                          {isCredit ? '+' : '-'} ₹{displayAmount}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
       )}
+      {/* END OF PASSBOOK CHANGE */}
 
       {showOrdersModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
@@ -1175,13 +1202,11 @@ export default function App() {
         </div>
       )}
 
-      {/* ✅ NAYA CAMERA SCANNER MODULE */}
       {showScannerModal && selectedDelivery && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border text-center max-h-[95vh] overflow-y-auto">
             <h3 className="font-extrabold text-sm mb-4">📷 Scan Customer QR</h3>
             
-            {/* Live Camera Scanner Box */}
             <div className="w-full aspect-square bg-black rounded-2xl overflow-hidden border-2 border-[#1E3F2D] mb-4">
               <Scanner 
                 onScan={(result) => {
