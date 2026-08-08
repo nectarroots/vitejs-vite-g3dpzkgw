@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient'; 
-import { QRCodeSVG } from 'qrcode.react'; // ✅ CHANGE 1: Import added for QR Code
+import { QRCodeSVG } from 'qrcode.react';
+import { Scanner } from '@yudiel/react-qr-scanner'; // ✅ Naya Camera Scanner Import
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -1072,7 +1073,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ✅ LOGIN MODAL WITH RESTORED FORGOT PASSWORD & TOGGLES */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-[#EBE5D9] max-h-[95vh] overflow-y-auto">
@@ -1175,17 +1175,36 @@ export default function App() {
         </div>
       )}
 
+      {/* ✅ NAYA CAMERA SCANNER MODULE */}
       {showScannerModal && selectedDelivery && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-5 max-w-sm w-full shadow-2xl border text-center max-h-[95vh] overflow-y-auto">
-            <h3 className="font-extrabold text-sm mb-2">Scan & Deliver</h3>
-            <button type="button" onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-[#1E3F2D] text-white py-3.5 rounded-xl text-xs font-extrabold mt-4">Simulate Delivery ✅</button>
-            <button type="button" onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#796C61] py-3 rounded-xl text-xs font-bold mt-2">Cancel</button>
+            <h3 className="font-extrabold text-sm mb-4">📷 Scan Customer QR</h3>
+            
+            {/* Live Camera Scanner Box */}
+            <div className="w-full aspect-square bg-black rounded-2xl overflow-hidden border-2 border-[#1E3F2D] mb-4">
+              <Scanner 
+                onScan={(result) => {
+                  if (result && result.length > 0) {
+                    const scannedText = result[0].rawValue;
+                    if (scannedText === selectedDelivery.cust?.qrCode) {
+                      handleMarkDelivered(selectedDelivery);
+                    } else {
+                      showToast('❌ Invalid QR Code!', 'error');
+                    }
+                  }
+                }}
+              />
+            </div>
+
+            <p className="text-[10px] text-[#796C61] font-bold mb-4">Point your camera at the customer's Nectar Roots Pass</p>
+
+            <button type="button" onClick={() => handleMarkDelivered(selectedDelivery)} className="w-full bg-white border border-[#EBE5D9] text-[#1E3F2D] py-3 rounded-xl text-xs font-extrabold shadow-sm">Manual Deliver (Bypass) ✅</button>
+            <button type="button" onClick={() => setShowScannerModal(false)} className="w-full bg-transparent text-[#8B0000] py-3 rounded-xl text-xs font-bold mt-1">Cancel</button>
           </div>
         </div>
       )}
 
-      {/* ✅ CHANGE 2: Updated showQRModal section */}
       {showQRModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border">
@@ -1210,7 +1229,6 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* End of Change 2 */}
 
       {adminViewCustomer && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
