@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient'; 
+import { QRCodeSVG } from 'qrcode.react'; // ✅ CHANGE 1: Import added for QR Code
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -1184,15 +1185,32 @@ export default function App() {
         </div>
       )}
 
+      {/* ✅ CHANGE 2: Updated showQRModal section */}
       {showQRModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
           <div className="bg-[#F8F5EE] rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl border">
-            <h3 className="font-extrabold text-sm">Delivery QR</h3>
-            <div className="text-xs font-mono font-extrabold mt-3">{currentCustomer?.qrCode}</div>
-            <button type="button" onClick={() => setShowQRModal(false)} className="w-full bg-white border py-3 rounded-xl mt-2">Close</button>
+            <h3 className="font-extrabold text-sm mb-4">Delivery QR</h3>
+            
+            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl shadow-sm border border-[#EBE5D9]">
+              {currentCustomer?.qrCode ? (
+                <QRCodeSVG 
+                  value={currentCustomer.qrCode} 
+                  size={180} 
+                  bgColor={"#ffffff"}
+                  fgColor={"#1E3F2D"} 
+                  level={"H"} 
+                />
+              ) : (
+                <div className="text-xs text-[#796C61]">No QR Available</div>
+              )}
+            </div>
+            <p className="text-[10px] font-bold text-[#796C61] mt-2">Scan for Contactless Delivery</p>
+
+            <button type="button" onClick={() => setShowQRModal(false)} className="w-full bg-white border py-3 rounded-xl mt-2 font-bold text-[#2D241E] shadow-sm">Close</button>
           </div>
         </div>
       )}
+      {/* End of Change 2 */}
 
       {adminViewCustomer && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-3.5 z-50">
