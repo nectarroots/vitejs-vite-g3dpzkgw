@@ -274,7 +274,7 @@ export default function App() {
     }
   };
 
-  // ✅ CHANGE 2: Updated handleMarkDelivered to handle Pre-Paid One-Time Orders safely
+  // ✅ PERFECTED DELIVERY LOGIC FOR ONE-TIME ORDERS
   const handleMarkDelivered = async (delivery: any) => {
     if (!delivery || !delivery.cust) return;
     const cust = delivery.cust;
@@ -294,14 +294,14 @@ export default function App() {
       const payload: any = { customer_name: cust.name, item: `Delivery: ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`, amount: amountToDeduct };
       if(proofImage) payload.proof_image = proofImage;
 
-      if (delivery.payment_type === 'scan_deduct') {
+      // Handle Pre-paid (One-Time Cart) vs Normal Subscriptions
+      if (delivery.payment_type === 'pre-paid') {
+        payload.amount = 0; // Already paid at checkout
+        payload.item = `Delivered (Pre-paid Cart Order): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`;
+        await supabase.from('transactions').insert([payload]);
+      } else if (delivery.payment_type === 'scan_deduct') {
         if (Number(cust.wallet_balance) < amountToDeduct) return showToast(`Failed: Low balance! (₹${cust.wallet_balance})`, 'error');
         await supabase.from('customers').update({ wallet_balance: Number(cust.wallet_balance) - amountToDeduct }).eq('id', cust.id);
-        await supabase.from('transactions').insert([payload]);
-      } else if (delivery.payment_type === 'pre-paid') {
-        // Money was already deducted at checkout. Just log zero-amount delivery event.
-        payload.amount = 0;
-        payload.item = `Delivered (Pre-paid Cart Order): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`;
         await supabase.from('transactions').insert([payload]);
       } else {
         payload.amount = 0;
@@ -309,10 +309,10 @@ export default function App() {
         await supabase.from('transactions').insert([payload]);
       }
 
-      // Notification
+      // Send Live Notification to Customer
       try { await supabase.from('notifications').insert([{ customer_id: cust.id, message: `Your ${delivery.product_name} was delivered! 📸`, is_read: false }]); } catch(e) {}
       
-      // If it was a One-Time cart order, mark it as Completed so it doesn't show up tomorrow
+      // If it's a One-Time order, close it permanently so it disappears from tomorrow's agent list
       if (delivery.frequency === 'One-Time') {
         await supabase.from('subscriptions').update({ status: 'Completed' }).eq('id', delivery.id);
       }
@@ -402,7 +402,7 @@ export default function App() {
   const getCartTotal = () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const getCartCount = () => cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // ✅ CHANGE 1: Checkout ab Cart Orders ko bhi "Subscriptions" table mein bhejega as "One-Time"
+  // ✅ PERFECTED CHECKOUT: Sending True One-Time order to DB without Hacks
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     if (!user || role === 'guest') { setShowCartModal(false); setShowLoginModal(true); return showToast('Please login to checkout!', 'error'); }
@@ -414,7 +414,6 @@ export default function App() {
     if (balance < total) return showToast(`Low Balance! Wallet: ₹${balance}`, 'error');
 
     try {
-      // 1. Wallet se paise deduct karna
       await supabase.from('customers').update({ wallet_balance: balance - total }).eq('id', activeCustomer.id);
       
       const newTxs: any[] = [];
@@ -423,30 +422,29 @@ export default function App() {
       cart.forEach((item) => {
         newTxs.push({ customer_name: activeCustomer.name, item: `Store Order (Paid): ${item.name}`, amount: item.price * item.quantity });
         
-        // 2. Agent ki list ke liye Order banana
         newOneTimeOrders.push({
           customer_id: activeCustomer.id,
           customer_name: activeCustomer.name,
           product_name: item.name,
           quantity: item.quantity,
           price: item.price * item.quantity,
-          frequency: 'One-Time', // Agent aur system ko pata chalega ki ye one-time hai
-          payment_type: 'auto_deduct', // ✅ Database error bachane ke liye isko auto_deduct kar diya (kyunki paise pehle hi kat chuke hain)
+          frequency: 'One-Time', // Now safely accepted by Supabase
+          payment_type: 'pre-paid', // Now safely accepted by Supabase
           status: 'Active', 
           delivery_slot: 'Morning (5-7 AM)',
-          delivery_instruction: 'Leave in Bag 🔕',
+          delivery_instruction: 'Leave in Bag 🔕', 
           modifications: {}
         });
       });
 
       if (appliedDiscount > 0) newTxs.push({ customer_name: activeCustomer.name, item: `Discount Applied (${promoInput.toUpperCase()})`, amount: -appliedDiscount });
       
-      // 3. Database mein Transaction aur Delivery Order dono save karna
       await supabase.from('transactions').insert(newTxs);
       
       const { error: subErr } = await supabase.from('subscriptions').insert(newOneTimeOrders);
       if (subErr) {
-        alert("Delivery assign hone mein error: " + subErr.message);
+        showToast("Error processing delivery schedule. Please contact support.", "error");
+        console.error(subErr);
       }
       
       fetchLiveDatabaseData(); 
@@ -457,7 +455,7 @@ export default function App() {
       setOrderSuccess(true);
     } catch (e: any) { alert('Checkout failed: ' + e.message); }
   };
-  
+
   const handleRecharge = async (custId: string) => {
     const cust = customers.find((c) => String(c.id) === String(custId));
     if (!cust) return;
@@ -1107,26 +1105,28 @@ export default function App() {
               <button type="button" onClick={() => setShowOrdersModal(false)} className="bg-white w-8 h-8 rounded-full border">✕</button>
             </div>
             <div className="space-y-3">
-               {/* Hide completed one-time orders from this list to keep it clean */}
                {subscriptions.filter(s => s.customer_id === currentCustomer?.id && s.status !== 'Completed').length === 0 ? (
                  <div className="text-center py-6 text-[10px] text-[#796C61]">No active orders.</div>
                ) : (
-                 subscriptions.filter(s => s.customer_id === currentCustomer?.id && s.status !== 'Completed').map((s, idx) => (
-                    <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
-                      <div className="font-extrabold text-[#1E3F2D]">
-                        {s.product_name} ({s.quantity}) 
-                        {s.frequency === 'One-Time' && <span className="ml-2 text-[8px] bg-[#B5651D] text-white px-1.5 py-0.5 rounded uppercase">One-Time</span>}
+                 subscriptions.filter(s => s.customer_id === currentCustomer?.id && s.status !== 'Completed').map((s, idx) => {
+                    const isOneTime = s.frequency === 'One-Time';
+                    return (
+                      <div key={idx} className="p-3.5 rounded-2xl bg-white border border-[#EBE5D9] shadow-sm">
+                        <div className="font-extrabold text-[#1E3F2D]">
+                          {s.product_name} ({s.quantity}) 
+                          {isOneTime && <span className="ml-2 text-[8px] bg-[#B5651D] text-white px-1.5 py-0.5 rounded uppercase">One-Time</span>}
+                        </div>
+                        
+                        {!isOneTime && (
+                          s.status === 'Paused' ? (
+                            <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
+                          ) : (
+                            <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
+                          )
+                        )}
                       </div>
-                      
-                      {s.frequency !== 'One-Time' && (
-                        s.status === 'Paused' ? (
-                           <button type="button" onClick={() => handleResume(s.id, s.product_name)} className="text-[10px] bg-[#1E3F2D] text-white px-2 py-1 rounded mt-2">Resume</button>
-                        ) : (
-                           <button type="button" onClick={() => handleConfirmPause(s.id, s.product_name)} className="text-[10px] bg-[#F8F5EE] text-[#1E3F2D] border px-2 py-1 rounded mt-2">Pause</button>
-                        )
-                      )}
-                    </div>
-                 ))
+                    )
+                 })
                )}
             </div>
           </div>
