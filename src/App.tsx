@@ -274,7 +274,6 @@ export default function App() {
     }
   };
 
-  // ✅ PERFECTED DELIVERY LOGIC FOR ONE-TIME ORDERS
   const handleMarkDelivered = async (delivery: any) => {
     if (!delivery || !delivery.cust) return;
     const cust = delivery.cust;
@@ -294,9 +293,8 @@ export default function App() {
       const payload: any = { customer_name: cust.name, item: `Delivery: ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`, amount: amountToDeduct };
       if(proofImage) payload.proof_image = proofImage;
 
-      // Handle Pre-paid (One-Time Cart) vs Normal Subscriptions
       if (delivery.payment_type === 'pre-paid') {
-        payload.amount = 0; // Already paid at checkout
+        payload.amount = 0; 
         payload.item = `Delivered (Pre-paid Cart Order): ${delivery.product_name} (${activeQty} qty) [Agent: ${user.email}]`;
         await supabase.from('transactions').insert([payload]);
       } else if (delivery.payment_type === 'scan_deduct') {
@@ -309,10 +307,8 @@ export default function App() {
         await supabase.from('transactions').insert([payload]);
       }
 
-      // Send Live Notification to Customer
       try { await supabase.from('notifications').insert([{ customer_id: cust.id, message: `Your ${delivery.product_name} was delivered! 📸`, is_read: false }]); } catch(e) {}
       
-      // If it's a One-Time order, close it permanently so it disappears from tomorrow's agent list
       if (delivery.frequency === 'One-Time') {
         await supabase.from('subscriptions').update({ status: 'Completed' }).eq('id', delivery.id);
       }
@@ -402,7 +398,6 @@ export default function App() {
   const getCartTotal = () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const getCartCount = () => cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // ✅ PERFECTED CHECKOUT: Sending True One-Time order to DB without Hacks
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     if (!user || role === 'guest') { setShowCartModal(false); setShowLoginModal(true); return showToast('Please login to checkout!', 'error'); }
@@ -428,8 +423,8 @@ export default function App() {
           product_name: item.name,
           quantity: item.quantity,
           price: item.price * item.quantity,
-          frequency: 'One-Time', // Now safely accepted by Supabase
-          payment_type: 'pre-paid', // Now safely accepted by Supabase
+          frequency: 'One-Time', 
+          payment_type: 'pre-paid', 
           status: 'Active', 
           delivery_slot: 'Morning (5-7 AM)',
           delivery_instruction: 'Leave in Bag 🔕', 
@@ -940,6 +935,40 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ✅ NAYA HACK: History Tab UI Add Kiya */}
+          {deliveryTab === 'history' && (
+            <div className="space-y-3">
+              {agentTransactions.length === 0 ? (
+                <div className="text-center p-8 bg-white rounded-3xl border border-[#EBE5D9] shadow-sm">
+                  <div className="text-4xl mb-2 opacity-80">📜</div>
+                  <div className="text-xs text-[#796C61] font-bold">No deliveries completed yet.</div>
+                </div>
+              ) : (
+                agentTransactions.map((t, idx) => {
+                  const dateObj = new Date(t.created_at || Date.now());
+                  const timeStr = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                  const itemName = t.item.split(' [Agent:')[0];
+                  
+                  return (
+                    <div key={idx} className="bg-white p-3.5 rounded-2xl border border-[#EBE5D9] shadow-sm">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="font-bold text-xs text-[#2D241E]">{itemName}</div>
+                        <div className="text-[9px] font-extrabold bg-[#F8F5EE] px-2 py-0.5 rounded border border-[#EBE5D9] text-[#796C61]">
+                          {dateStr}, {timeStr}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-medium">
+                        <span className="text-[#796C61]">To: <strong className="text-[#2D241E]">{t.customer_name}</strong></span>
+                        <span className="text-[#1E3F2D] font-bold">✅ Delivered</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </div>
